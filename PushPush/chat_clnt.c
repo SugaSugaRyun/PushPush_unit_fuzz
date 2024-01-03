@@ -33,6 +33,7 @@ int my_id = 0;
 object_data_t Model;
 char ** all_user_name;
 
+
 int recv_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *)buf;
     size_t acc = 0;
@@ -67,71 +68,65 @@ int send_bytes(int sock_fd, void * buf, size_t len){
     }
     return 0;
 }
-	
+
+int check_validation(int cmd){
+    int user_idx = cmd/4;
+    int span = cmd%4;
+
+    int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
+    curr_x = target_x = item_target_x = Model.user_locations[user_idx].x;
+    curr_y = target_y = item_target_y = Model.user_locations[user_idx].y;
+
+    switch(span){
+        case UP:
+            if((target_y = (curr_y - 1)) < 0) return 1;//out of array
+            if(map[target_x][target_y] == EMPTY) return 0; //empty
+            else if(map[target_x][target_y] == ITEM){
+                if((item_target_y = (target_y - 1)) < 0) return 1; //item and non-movabel
+                if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+                else return 1;  //others (block, user, base)
+            }else return 1;
+            break;
+
+        case DOWN:
+            if((target_y = (curr_y + 1)) > MAP_LENGTH) return 1;//out of array
+            if(map[target_x][target_y] == EMPTY) return 0; //empty
+            else if(map[target_x][target_y] == ITEM){
+                if((item_target_y = (target_y + 1)) > MAP_LENGTH) return 1; //item and non-movabel
+                if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+                else return 1;  //others (block, user, base)
+            }else return 1;
+            break;
+
+
+        case LEFT:
+            if((target_x = (curr_x - 1)) < 0) return 1;//out of array
+            if(map[target_x][target_y] == EMPTY) return 0; //empty
+            else if(map[target_x][target_y] == ITEM){
+                if((item_target_x = (target_x - 1)) < 0) return 1; //item and non-movabel
+                if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+                else return 1;  //others (block, user, base)
+            }else return 1;
+            break;
+        case RIGHT:
+            if((target_x = (curr_x + 1)) > MAP_WIDTH) return 1;//out of array
+            if(map[target_x][target_y] == EMPTY) return 0; //empty
+            else if(map[target_x][target_y] == ITEM){
+                if((item_target_x = (target_x + 1)) > MAP_WIDTH) return 1; //item and non-movabel
+                if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+                else return 1;  //others (block, user, base)
+            }else return 1;
+            break;
+    }
+
+}
+
 void *recv_msg(void * arg)   // read thread main
 {
 	int sock = *((int*)arg);
 	char name_msg[NAME_SIZE+BUF_SIZE];
 	int str_len;
 
-	// if(read(sock, (void*)&my_id, sizeof(int)) == -1) 
-	// 	return (void*)-1;
-	// //receive map 
-	// if(read(sock, (void*)&(Model.map_size), sizeof(int) == -1))
-	// 	return (void*)-1;
-
-	// if(read(sock, (void*)&(Model.timeout), sizeof(int) == -1))
-	// 	return (void*)-1;
-
-	// if(read(sock, (void*)&(Model.num_user), sizeof(int) == -1))
-	// 	return (void*)-1;
-
-	// Model.base_locations = malloc (sizeof(location_t) * Model.num_user);
-
-	// for(int i=0; i<Model.num_user; i++){
-	// 	if(read(sock, (void *)&(Model.base_locations[i]), sizeof(location_t) == -1))
-	// 	return (void*)-1;
-	// }
-
-	// Model.user_locations = malloc (sizeof(location_t) * Model.num_user);
-
-	// for(int i=0; i<Model.num_user; i++){
-	// 	if(read(sock, (void *)&(Model.user_locations[i]), sizeof(location_t) == -1))
-	// 	return (void*)-1;
-	// }
-
-	// if(read(sock, (void*)&(Model.num_item), sizeof(int) == -1))
-	// 	return (void*)-1;
-
-	// Model.item_locations = malloc (sizeof(location_t) * Model.num_item);
-
-	// for(int i=0; i<Model.num_item; i++){
-	// 	if(read(sock, (void *)&(Model.item_locations[i]), sizeof(location_t) == -1))
-	// 	return (void*)-1;
-	// }
-
-	// if(read(sock, (void*)&(Model.num_block), sizeof(int) == -1))
-	// 	return (void*)-1;
-
-	// Model.block_locations = malloc (sizeof(location_t) * Model.num_block);
-
-	// for(int i=0; i<Model.num_block; i++){
-	// 	if(read(sock, (void *)&(Model.block_locations[i]), sizeof(location_t) == -1))
-	// 		return (void*)-1;
-	// }
-
-	// //receive all player's id, name 
-	// all_user_name = malloc(sizeof(char) * 4);
-	// int name_size
-	// for(int i=0; i<Model.num_user; i++){
-	// 	if(read(sock, (void *)&(name_size), sizeof(name_size)) == -1)
-	// 		return (void*)-1;
-	// 	all_user_name[i] = malloc(sizeof(NAME_SIZE));
-	// 	if(read(sock, (void *)&(all_user_name[i]), name_size) == -1)
-	// 		return (void*)-1;
-
-	// 	all_user_name[i][name_size] = '\0';
-	// }
 	if (recv_bytes(sock, (void*)&my_id, sizeof(int)) == -1) 
     return (void*)-1;
 
