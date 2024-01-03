@@ -225,8 +225,12 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
     }
     g_print("%s\n", greeting);
     //TODO temporary... need to move this to recv function
-    if(send_bytes(sock, (void*)&cmd, sizeof(cmd)) == -1)
-		return TRUE;
+    if(check_validation(cmd)) 
+        g_print("invalid movement!\n");
+	else {
+        if(send_bytes(sock, (void*)&cmd, sizeof(cmd)) == -1)
+		    return TRUE;
+    }
 
 
     return TRUE;
