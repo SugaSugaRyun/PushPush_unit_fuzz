@@ -18,20 +18,20 @@ typedef struct object_data{
     int map_size;
     int timeout;
     int num_user;
-    location_t * base_loactions; 
+    location_t * base_locations; 
     location_t * user_locations; 
     int num_item;
     location_t * item_locations; 
-    int num_block
+    int num_block;
     location_t * block_locations;
-}object_data_t
+}object_data_t;
 	
 char name[NAME_SIZE] = "[DEFAULT]";
 char msg[BUF_SIZE];
 char my_name[BUF_SIZE];
 int my_id = 0;
 object_data_t Model;
-char * all_user_name;
+char ** all_user_name;
 
 int recv_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *)buf;
@@ -77,46 +77,46 @@ void *recv_msg(void * arg)   // read thread main
 	// if(read(sock, (void*)&my_id, sizeof(int)) == -1) 
 	// 	return (void*)-1;
 	// //receive map 
-	// if(read(sock, (void*)&(Modek.map_size), sizeof(int) == -1))
+	// if(read(sock, (void*)&(Model.map_size), sizeof(int) == -1))
 	// 	return (void*)-1;
 
-	// if(read(sock, (void*)&(Modek.timeout), sizeof(int) == -1))
+	// if(read(sock, (void*)&(Model.timeout), sizeof(int) == -1))
 	// 	return (void*)-1;
 
-	// if(read(sock, (void*)&(Modek.num_user), sizeof(int) == -1))
+	// if(read(sock, (void*)&(Model.num_user), sizeof(int) == -1))
 	// 	return (void*)-1;
 
-	// Model.base_loactions = malloc (sizeof(location_t) * Model.num_user);
+	// Model.base_locations = malloc (sizeof(location_t) * Model.num_user);
 
 	// for(int i=0; i<Model.num_user; i++){
-	// 	if(read(sock, (void *)&(Model.base_loactions[i]), sizeof(location_t) == -1))
+	// 	if(read(sock, (void *)&(Model.base_locations[i]), sizeof(location_t) == -1))
 	// 	return (void*)-1;
 	// }
 
-	// Model.user_loactions = malloc (sizeof(location_t) * Model.num_user);
+	// Model.user_locations = malloc (sizeof(location_t) * Model.num_user);
 
 	// for(int i=0; i<Model.num_user; i++){
-	// 	if(read(sock, (void *)&(Model.user_loactions[i]), sizeof(location_t) == -1))
+	// 	if(read(sock, (void *)&(Model.user_locations[i]), sizeof(location_t) == -1))
 	// 	return (void*)-1;
 	// }
 
-	// if(read(sock, (void*)&(Modek.num_item), sizeof(int) == -1))
+	// if(read(sock, (void*)&(Model.num_item), sizeof(int) == -1))
 	// 	return (void*)-1;
 
-	// Model.item_loactions = malloc (sizeof(location_t) * Model.num_item);
+	// Model.item_locations = malloc (sizeof(location_t) * Model.num_item);
 
 	// for(int i=0; i<Model.num_item; i++){
-	// 	if(read(sock, (void *)&(Model.item_loactions[i]), sizeof(location_t) == -1))
+	// 	if(read(sock, (void *)&(Model.item_locations[i]), sizeof(location_t) == -1))
 	// 	return (void*)-1;
 	// }
 
-	// if(read(sock, (void*)&(Modek.num_block), sizeof(int) == -1))
+	// if(read(sock, (void*)&(Model.num_block), sizeof(int) == -1))
 	// 	return (void*)-1;
 
-	// Model.block_loactions = malloc (sizeof(location_t) * Model.num_block);
+	// Model.block_locations = malloc (sizeof(location_t) * Model.num_block);
 
 	// for(int i=0; i<Model.num_block; i++){
-	// 	if(read(sock, (void *)&(Model.block_loactions[i]), sizeof(location_t) == -1))
+	// 	if(read(sock, (void *)&(Model.block_locations[i]), sizeof(location_t) == -1))
 	// 		return (void*)-1;
 	// }
 
@@ -136,46 +136,46 @@ void *recv_msg(void * arg)   // read thread main
     return (void*)-1;
 
 	// receive map 
-	if (recv_bytes(sock, (void*)&(Modek.map_size), sizeof(int)) == -1)
+	if (recv_bytes(sock, (void*)&(Model.map_size), sizeof(int)) == -1)
 		return (void*)-1;
 
-	if (recv_bytes(sock, (void*)&(Modek.timeout), sizeof(int)) == -1)
+	if (recv_bytes(sock, (void*)&(Model.timeout), sizeof(int)) == -1)
 		return (void*)-1;
 
-	if (recv_bytes(sock, (void*)&(Modek.num_user), sizeof(int)) == -1)
+	if (recv_bytes(sock, (void*)&(Model.num_user), sizeof(int)) == -1)
 		return (void*)-1;
 
-	Model.base_loactions = malloc (sizeof(location_t) * Model.num_user);
+	Model.base_locations = malloc (sizeof(location_t) * Model.num_user);
 
 	for (int i = 0; i < Model.num_user; i++) {
-		if (recv_bytes(sock, (void*)&(Model.base_loactions[i]), sizeof(location_t)) == -1)
+		if (recv_bytes(sock, (void*)&(Model.base_locations[i]), sizeof(location_t)) == -1)
 			return (void*)-1;
 	}
 
-	Model.user_loactions = malloc (sizeof(location_t) * Model.num_user);
+	Model.user_locations = malloc (sizeof(location_t) * Model.num_user);
 
 	for (int i = 0; i < Model.num_user; i++) {
-		if (recv_bytes(sock, (void*)&(Model.user_loactions[i]), sizeof(location_t)) == -1)
+		if (recv_bytes(sock, (void*)&(Model.user_locations[i]), sizeof(location_t)) == -1)
 			return (void*)-1;
 	}
 
-	if (recv_bytes(sock, (void*)&(Modek.num_item), sizeof(int)) == -1)
+	if (recv_bytes(sock, (void*)&(Model.num_item), sizeof(int)) == -1)
 		return (void*)-1;
 
-	Model.item_loactions = malloc (sizeof(location_t) * Model.num_item);
+	Model.item_locations = malloc (sizeof(location_t) * Model.num_item);
 
 	for (int i = 0; i < Model.num_item; i++) {
-		if (recv_bytes(sock, (void*)&(Model.item_loactions[i]), sizeof(location_t)) == -1)
+		if (recv_bytes(sock, (void*)&(Model.item_locations[i]), sizeof(location_t)) == -1)
 			return (void*)-1;
 	}
 
-	if (recv_bytes(sock, (void*)&(Modek.num_block), sizeof(int)) == -1)
+	if (recv_bytes(sock, (void*)&(Model.num_block), sizeof(int)) == -1)
 		return (void*)-1;
 
-	Model.block_loactions = malloc (sizeof(location_t) * Model.num_block);
+	Model.block_locations = malloc (sizeof(location_t) * Model.num_block);
 
 	for (int i = 0; i < Model.num_block; i++) {
-		if (recv_bytes(sock, (void*)&(Model.block_loactions[i]), sizeof(location_t)) == -1)
+		if (recv_bytes(sock, (void*)&(Model.block_locations[i]), sizeof(location_t)) == -1)
 			return (void*)-1;
 	}
 
@@ -187,7 +187,7 @@ void *recv_msg(void * arg)   // read thread main
 		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
 			return (void*)-1;
 
-		all_user_name[i] = malloc(sizeof(char) * (name_size + 1));
+		all_user_name[i] = malloc(sizeof(char) * (name_size + 1)); //여기서 error 발생 
 
 		if (recv_bytes(sock, (void*)(all_user_name[i]), name_size) == -1)
 			return (void*)-1;
@@ -201,7 +201,7 @@ void *recv_msg(void * arg)   // read thread main
 		if(recv_bytes(sock, (void *)&server_echo, sizeof(server_echo)) == -1)
 			return (void*)-1;
 
-		
+
 	}
 	return NULL;
 }

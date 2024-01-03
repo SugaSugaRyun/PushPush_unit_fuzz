@@ -54,43 +54,26 @@ void disconnected(int sock)
 	close(sock);
 }
 
-// yeon
-int recv_bytes(int sock_fd, void * buf, size_t len){
-    char * p = (char *)buf;
-    size_t acc = 0;
 
-    while(acc < len)
-    {
-        size_t recved;
-        recved = recv(sock_fd, p, len - acc, 0);
-        if(recved  == -1 || recved == 0){
-            return 1;
-        }
-        p+= recved ;
-        acc += recved ;
-    }
-    return 0;
+int write_byte(int sock, void * buf, int size){
+
+	int write_size = 0;
+	int str_len = 0;
+	while(write_size < size)
+	{
+		str_len = write(sock, buf + write_size, size - write_size);
+		if( str_len == 0)
+		{
+			return 0;
+		}
+		if( str_len == -1)
+		{
+
+		}
+		write_size += str_len;
+	}
+	return write_size;
 }
-
-int send_byte(int sock_fd, void * buf, size_t len){
-    char * p = (char *) buf;
-    size_t acc = 0;
-
-    while(acc < len)
-    {
-        size_t sent;
-        sent = send(sock_fd, p, len - acc, 0);
-        if(sent == -1 || sent == 0){
-            return 1;
-        }
-
-        p+= sent;
-        acc += sent;
-    }
-    return 0;
-}
-
-//yeon 
 
 int read_byte(int sock, void * buf, int size)
 {
@@ -141,16 +124,16 @@ void *handle_clnt(void * arg)
 		if (clnt_sock == clnt_socks[i])
 		{
 			// printf("id : %d\n", i);
-			write(clnt_sock, (void *)&i, sizeof(int));
+			write_byte(clnt_sock, (void *)&i, sizeof(int));
 			break;
 		}
 	}
 	pthread_mutex_unlock(&mutx);
 	
-	
+
 
 	
-	while ((str_len = read_byte(clnt_sock, &msg, sizeof(msg))) != 0)
+	while ((str_len = read(clnt_sock, &msg, sizeof(msg))) != 0)
 		send_msg_all(msg, str_len);
 	
 	
