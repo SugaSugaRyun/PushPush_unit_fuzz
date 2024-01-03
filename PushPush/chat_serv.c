@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #define BUF_SIZE 256
+#define MAX_USER 4
 
 typedef struct {
 	int x;
@@ -29,7 +30,7 @@ typedef struct {
 object_data game_data;
 
 int clnt_cnt = 0;
-int clnt_socks[4];
+int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
 
@@ -117,9 +118,9 @@ void *handle_clnt(void * arg)
 	char user_name[20]; //TODO 나중에 글로벌 변수에 ㄸ따로 저장해줘야해요
 	str_len = read_byte(clnt_sock, (void *)&user_name, name_size);
 
-
+	//send id
 	pthread_mutex_lock(&mutx);
-	for (int i = 0; i < clnt_cnt; i++)   // remove disconnected client
+	for (int i = 0; i < clnt_cnt; i++) 
 	{
 		if (clnt_sock == clnt_socks[i])
 		{
@@ -130,6 +131,28 @@ void *handle_clnt(void * arg)
 	}
 	pthread_mutex_unlock(&mutx);
 	
+	//send data
+	write_byte(clnt_sock, (void *)&game_data.map_size, sizeof(int));
+	write_byte(clnt_sock, (void *)&game_data.timeout, sizeof(int));
+	write_byte(clnt_sock, (void *)&game_data.num_user, sizeof(int));
+	for(int i =0; i< game_data.num_user)
+	{
+		write_byte(clnt_sock, (void *)&game_data.base_loactions[i], sizeof(location));
+	}
+	for(int i =0; i< game_data.num_user)
+	{
+		write_byte(clnt_sock, (void *)&game_data.user_locations[i], sizeof(location));
+	}	
+	write_byte(clnt_sock, (void *)&game_data.num_item, sizeof(int));
+	for(int i =0; i< game_data.num_item)
+	{
+		write_byte(clnt_sock, (void *)&game_data.item_locations[i], sizeof(location));
+	}
+	write_byte(clnt_sock, (void *)&game_data.block_item, sizeof(int));
+	for(int i =0; i< game_data.num_item)
+	{
+		write_byte(clnt_sock, (void *)&game_data.block_locations[i], sizeof(location));
+	}		
 
 
 	
