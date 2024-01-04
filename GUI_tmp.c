@@ -15,30 +15,21 @@
 #define GDK_KEY_LEFT 65361
 #define GDK_KEY_RIGHT 65363
 
-int map[MAP_WIDTH][MAP_LENGTH]; //-1: empty, -2: block, -3 fruit, 0 >= users
+int map[MAP_WIDTH][MAP_LENGTH]; 
 char msg_info[BUF_SIZE] = "";
 char my_username[BUF_SIZE] = "me";
 char buf[BUF_SIZE] = "";
 char all_usernames[NUM_PLAYER][BUF_SIZE];
-char score[NUM_PLAYER][BUF_SIZE];
+char score[NUM_PLAYER];
 void load_game_info();
-void swap(int curr_x, int curr_y, int target_x, int target_y);
-int check_validation(int cmd);
-void move(int cmd);
-
 enum entity {
 	EMPTY = 0,
-	ITEM = -1,
-	BLOCK = -2,
-	USER1 = 1,
-	USER2 = 2,
-	USER3 = 3,
-	USER4 = 4,
-	BASE1 = 10,
-	BASE2 = 20,
-	BASE3 = 30,
-	BASE4 = 40
+	BLOCK = -1,
+	ITEM = -9, //item will be -10 ~ -110
+	USER = 1, //user wil be 1 ~ 3
+	BASE = 9, //base will be 10 ~ 30
 };
+char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#dbe87c", "#dbe87c", "#dbe87c", "#c59365", "#f3ebde"};
 enum spans {UP, DOWN, LEFT, RIGHT};
 int my_id = 0;
 
@@ -72,21 +63,26 @@ GdkPixbuf *create_pixbuf(const gchar * filename);
 int load_icons();
 int check_map_valid();
 void set_window();
-GtkWidget *create_base(int id);
+GtkWidget* create_entity(int id);
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
 void display_screen();
 void add_mat_board();
 void exit_game(GtkWidget* widget);
-char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#dbe87c", "#dbe87c", "#dbe87c", "#c59365", "#f3ebde"};
+void swap(int curr_x, int curr_y, int target_x, int target_y);
+int check_validation(int cmd);
+void move(int cmd);
+
 
 //for testing...
 void test_set(){
 	g_print(" ... test data loading ... \n");
 
 	for(int i = 0; i < NUM_PLAYER; i++){
-		sprintf(score[i], "user%d: %d", i, i+1);		
-		g_print("score%d -> %s\n", i, score[i]);
+		score[i] = 0;
+		strcpy(all_usernames[i], "user");
+		g_print("score of %s -> %d\n", all_usernames[i], score[i]);
 	}
+
 	
 	for(int i = 0; i < MAP_WIDTH; i++){
 		for(int j = 0; j < MAP_LENGTH; j++){
@@ -103,16 +99,17 @@ void test_set(){
 	for (int i = 0; i < 20; i++) {
         randx = rand() % MAP_WIDTH;
         randy = rand() % MAP_LENGTH;
-		map[randx][randy] = ITEM;
+		int item_id = rand() % 12;
+		item_id = (0 - item_id)*10;
+		map[randx][randy] = item_id;
     }
 
-	map[1][0] = USER1;
-	map[0][0] = BASE1;
-	Model.user_locations = NULL;
+	map[1][0] = 1;
+	map[0][0] = 10;
 	Model.user_locations = malloc(sizeof(location_t)*NUM_PLAYER);
 	Model.user_locations[0].x = 1;
 	Model.user_locations[0].y = 0;
-
+	strcpy(all_usernames[0], my_username);	
 	g_print("user location: %d,%d\n", Model.user_locations[0].x, Model.user_locations[0].y);
 	g_print("location %d,%d: %d\n", Model.user_locations[0].x, Model.user_locations[0].y, map[Model.user_locations[0].x][Model.user_locations[0].y]);
 
@@ -266,17 +263,31 @@ void set_window(){
 
 
 
-GtkWidget *create_base(int id){
+//create entity Widget from ids, return widget* or NULL on id-empty
+GtkWidget* create_entity(int id){
 
-	GtkWidget* base = gtk_event_box_new();
-	//g_signal_connect(G_OBJECT(base), "expose-event", G_CALLBACK(draw_base), &id);
-	gtk_widget_set_size_request(base, 32, 32);		
-
+	GtkWidget* sprite;
 	GdkColor color;
-	gdk_color_parse(user_color[id], &color);
-	gtk_widget_modify_bg(base, GTK_STATE_NORMAL, &color);
+	int idx;
 
-	return base;
+	if(id == EMPTY) return NULL;
+	else if(id == BLOCK){
+		idx = rand() % 2;
+      	sprite = gtk_image_new_from_pixbuf(icon_block[idx]); 
+	}else if(id < ITEM){
+		idx = (0-id)/10-1;
+      	sprite = gtk_image_new_from_pixbuf(icon_fruit[idx]); 
+	}else if(id > BASE){
+		idx = id/10-1;
+		sprite = gtk_event_box_new();
+		gtk_widget_set_size_request(sprite, 32, 32);		
+		gdk_color_parse(user_color[idx], &color);
+		gtk_widget_modify_bg(sprite, GTK_STATE_NORMAL, &color);
+	}else{
+		idx = id-1;
+      	sprite = gtk_image_new_from_pixbuf(icon_player[idx]); 
+	}
+	return sprite;
 
 }
 
@@ -285,41 +296,18 @@ GtkWidget *create_base(int id){
 void display_screen(){
 
   //set screen matrix
-  mat_screen = gtk_table_new(MAP_WIDTH, MAP_LENGTH, FALSE);
-  GdkColor bg;
-  gdk_color_parse("#96ba77", &bg);
-  gtk_widget_modify_bg(mat_screen, GTK_STATE_NORMAL, &bg);
+  if(mat_screen == NULL) mat_screen = gtk_table_new(MAP_WIDTH, MAP_LENGTH, FALSE);
+  else gtk_container_foreach(GTK_CONTAINER(mat_screen), (GtkCallback)gtk_widget_destroy, NULL); 
 
   for (int i = 0; i < MAP_WIDTH; i++) {
     for (int j = 0; j < MAP_LENGTH; j++) {
-		int rand_index;
-		GtkWidget* sprite; 
-		if (map[i][j] == EMPTY) continue;
-		switch(map[i][j]){
-			case BLOCK:
-				rand_index= rand() % 2;
-      			sprite = gtk_image_new_from_pixbuf(icon_block[rand_index]); 
-				break;	
-			case ITEM:
-				rand_index= rand() % 12;
-      			sprite = gtk_image_new_from_pixbuf(icon_fruit[rand_index]); 
-				break;	
-			default: //this case, user or base
-				g_print("user at [%d,%d]\n", i, j);
-				if(map[i][j] >= 10){ //base
-					int id = map[i][j]/10-1;
-					sprite = create_base(id);
-				}else{ //user
-					rand_index = map[i][j]-1;
-      				sprite = gtk_image_new_from_pixbuf(icon_player[rand_index]); 
-				}
-				break;
-		}
-		gtk_table_attach_defaults(GTK_TABLE(mat_screen), sprite, i, i+1, j, j+1);
+		GtkWidget* sprite = create_entity(map[i][j]);
+		if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_screen), sprite, i, i+1, j, j+1);
     }
   }
   g_print("done display screen\n");
   gtk_table_attach_defaults(GTK_TABLE(mat_main), mat_screen, 0, 9, 1, 10);
+  gtk_widget_show_all(window); 
 
 }
 
@@ -333,7 +321,7 @@ void add_mat_board(){
   GtkWidget* line1 = gtk_hseparator_new();
   sprintf(buf, "Good luck, %s!", my_username);
   label_name = gtk_label_new(buf);
-  GtkWidget* sprite = gtk_image_new_from_pixbuf(icon_player[0]);
+  GtkWidget* sprite = gtk_image_new_from_pixbuf(icon_player[my_id]);
   GtkWidget* line2 = gtk_hseparator_new();
   GtkWidget *label_title = gtk_label_new(":: SCORE ::");
   
@@ -345,7 +333,8 @@ void add_mat_board(){
 
   for(int i = 0; i < NUM_PLAYER; i++){
 	//TODO this part display the score (global array)
-	label_score[i] = gtk_label_new(score[i]);
+	sprintf(msg_info, "%s: %d", all_usernames[i], score[i]);		
+	label_score[i] = gtk_label_new(msg_info);
 	gtk_container_add(GTK_CONTAINER(mat_board), label_score[i]);
   } 
 
@@ -355,8 +344,6 @@ void add_mat_board(){
   gtk_table_attach_defaults(GTK_TABLE(mat_main), mat_board, 9, 11, 1, 10);
  
 
-
-
 }
 
 void exit_game(GtkWidget* widget){
@@ -364,21 +351,33 @@ void exit_game(GtkWidget* widget){
 	exit(EXIT_SUCCESS);
 }
 
+
 //swap two location's entry and update mat_screen
-void swap(int curr_x, int curr_y, int target_x, int target_y){
+//TODO failed to implement... cannot remove entities from table...
+void swap(int x1, int y1, int x2, int y2){
+
+	int id1, id2;
+	id1 = map[x1][y1];
+	id2 = map[x2][y2];
+
 /*	
-	GtkWidget *curr_entry = gtk_table_get_child(GTK_TABLE(mat_screen), curr_x, curr_y);
-	GtkWidget *target__entry = gtk_table_get_child(GTK_TABLE(mat_screen), target_x, target_y);
 
-	gtk_table_attach_defaults(GTK_TABLE(mat_screen), target_entry, curr_x, curr_x + 1, curr_y , curr_y  + 1);
-    gtk_table_attach_defaults(GTK_TABLE(mat_screen), curr_entry, target_x, target_x + 1, target_y , target_y+1);
+	GtkWidget *entity1, *entity2;
+	
+	if((entity1 = create_entity((id1 = map[x1][y1]))) == NULL) entity1 = gtk_label_new("HEHE");
+	if((entity2 = create_entity((id2 = map[x2][y2]))) == NULL) entity2 = gtk_label_new("HEHE");
+    gtk_table_attach(GTK_TABLE(mat_screen), entity1, x2, x2 + 1, y2, y2 + 1, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(GTK_TABLE(mat_screen), entity2, x1, x1 + 1, y1, y1 + 1, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_widget_show_all(GTK_WIDGET(mat_screen));
 
-	gtk_widget_show_all(mat_screen);
 */
+		map[x1][y1] = id2;
+		map[x2][y2] = id1;
+	g_print("swap occured! (%d and %d)\n", id1, id2);
 
-	g_print("wanna swap...\n");
+	display_screen();
+
 }
-
 
 
 int check_validation(int cmd){
@@ -393,9 +392,10 @@ int check_validation(int cmd){
 		case UP:		
 			if((target_y = (curr_y - 1)) < 0) return 1;//out of array
 			if(map[target_x][target_y] == EMPTY) return 0; //empty
-			else if(map[target_x][target_y] == ITEM){ 
+			else if(map[target_x][target_y] < ITEM){ 
 				if((item_target_y = (target_y - 1)) < 0) return 1; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return 0;
 				else return 1;	//others (block, user, base)
 			}else return 1;	
 			break;
@@ -403,9 +403,10 @@ int check_validation(int cmd){
 		case DOWN:
 			if((target_y = (curr_y + 1)) > MAP_LENGTH) return 1;//out of array
 			if(map[target_x][target_y] == EMPTY) return 0; //empty
-			else if(map[target_x][target_y] == ITEM){ 
+			else if(map[target_x][target_y] < ITEM){ 
 				if((item_target_y = (target_y + 1)) > MAP_LENGTH) return 1; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return 0;
 				else return 1;	//others (block, user, base)
 			}else return 1;	
 			break;
@@ -414,9 +415,10 @@ int check_validation(int cmd){
 		case LEFT:
 			if((target_x = (curr_x - 1)) < 0) return 1;//out of array
 			if(map[target_x][target_y] == EMPTY) return 0; //empty
-			else if(map[target_x][target_y] == ITEM){ 
+			else if(map[target_x][target_y] < ITEM){ 
 				if((item_target_x = (target_x - 1)) < 0) return 1; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return 0;
 				else return 1;	//others (block, user, base)
 			}else return 1;	
 			break;
@@ -424,14 +426,16 @@ int check_validation(int cmd){
 		case RIGHT:
 			if((target_x = (curr_x + 1)) > MAP_WIDTH) return 1;//out of array
 			if(map[target_x][target_y] == EMPTY) return 0; //empty
-			else if(map[target_x][target_y] == ITEM){ 
+			else if(map[target_x][target_y] < ITEM){ 
 				if((item_target_x = (target_x + 1)) > MAP_WIDTH) return 1; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return 0; //item and movable
+				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return 0;
 				else return 1;	//others (block, user, base)
 			}else return 1;	
 			break;
 
 	}
+
 
 }
 
@@ -461,17 +465,44 @@ void move(int cmd){
 			break;	
 		case RIGHT:
 			target_x = curr_x + 1;
-			item_target_x = target_x - 1;
+			item_target_x = target_x + 1;
 			break;	
 	}
-	
+
+	int tmp;	
 	if(map[target_x][target_y] == EMPTY){ //empty
-		swap(curr_x, curr_y, target_x, target_y);
-	}else if(map[target_x][target_y] == ITEM){ //item
-		swap(target_x, target_y, item_target_x, item_target_y);
-		swap(curr_x, curr_y, target_x, target_y);
+//		swap(curr_x, curr_y, target_x, target_y);
+		tmp = map[curr_x][curr_y];
+		map[curr_x][curr_y] = map[target_x][target_y];
+		map[target_x][target_y] = tmp;
+	}else if(map[target_x][target_y] < ITEM){ //item
+//		swap(target_x, target_y, item_target_x, item_target_y);
+//		swap(curr_x, curr_y, target_x, target_y);
+		if(map[item_target_x][item_target_y] > BASE){
+			map[target_x][target_y] = EMPTY;
+			score[user_idx] ++;
+			//TODO label_update
+			sprintf(msg_info, "%s got the score!", all_usernames[user_idx]);
+			gtk_label_set_text((GtkLabel*)label_info, msg_info);
+			sprintf(msg_info, "%s: %d", all_usernames[user_idx], score[user_idx]);
+			gtk_label_set_text((GtkLabel*)label_score[user_idx], msg_info);
+			
+		}else{
+			tmp = map[target_x][target_y];
+			map[target_x][target_y] = map[item_target_x][item_target_y];
+			map[item_target_x][item_target_y] = tmp;
+		}
+		tmp = map[curr_x][curr_y];
+		map[curr_x][curr_y] = map[target_x][target_y];
+		map[target_x][target_y] = tmp;
+
 	}
 
+	Model.user_locations[user_idx].x = target_x;
+	Model.user_locations[user_idx].y = target_y;
+
+	display_screen();
+	g_print("moved~\n");
 }
 
 gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
@@ -500,7 +531,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 	//TODO temporary... need to move this to recv function
 	//move(cmd);
 	if(check_validation(cmd)) g_print("invalid movement!\n");
-	else g_print("moved widgets\n");
+	else move(cmd);
 
     return TRUE;
 }
