@@ -13,8 +13,9 @@
 #define MAX_USER 4
 #define NAME_SIZE 16
 
+int start_flag = 0;
 int max_user;
-char * user_name;
+char ** user_name;
 int json_size;
 char * json_serialize;
 
@@ -61,10 +62,10 @@ int roadJson()
 
 	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
 	max_user = num_user->valueint;
-	user_name = malloc(sizeof(char)*max_user);
+	user_name = (char**)malloc(sizeof(char*) * max_user);
 	for(int i=0; i< max_user; i++)
 	{
-		user_name[i] = malloc(sizeof(char) * NAME_SIZE);
+		user_name[i] = (char*)malloc(sizeof(char) * NAME_SIZE);
 	}
 
 	json_serialize = cJSON_Print(root);
@@ -139,9 +140,12 @@ int read_byte(int sock, void * buf, int size)
 
 void send_msg_all(void * event, int len)   // send to all
 {
+	// printf("%d\n",*(int *)event);
 	pthread_mutex_lock(&mutx);
 	for (int i = 0; i < clnt_cnt; i++)
-		write_byte(clnt_socks[i], (void *)event, len);
+	{
+		write_byte(clnt_socks[i], event, len);
+	}
 	pthread_mutex_unlock(&mutx);
 }
 
@@ -151,12 +155,9 @@ void *handle_clnt(void * arg)
 	int str_len = 0;
 	int event;
 	int name_size = 0;
+
+	//recive name size
 	str_len = read_byte(clnt_sock, (void *)&name_size, sizeof(int));
-
-	//reciev name
-	// char user_name[20];
-	// read_byte(clnt_sock, (void *)user_name, name_size);
-
 	//reciev name, send id
 	pthread_mutex_lock(&mutx);
 	for (int i = 0; i < clnt_cnt; i++) 
@@ -164,8 +165,10 @@ void *handle_clnt(void * arg)
 		if (clnt_sock == clnt_socks[i])
 		{
 			// printf("id : %d\n", i);
-			read_byte(clnt_sock, (void *)&user_name[i], name_size);
+			read_byte(clnt_sock, (void *)user_name[i], name_size);
+			printf("%s is enter\n",user_name[i]);
 			write_byte(clnt_sock, (void *)&i, sizeof(int));
+			start_flag++;
 			break;
 		}
 	}
@@ -176,20 +179,21 @@ void *handle_clnt(void * arg)
 	write_byte(clnt_sock, json_serialize, json_size);
 
 			
-	while(clnt_cnt < max_user);
+	while(start_flag < max_user);
 
+	
 	for(int i=0; i< max_user; i++)
 	{
-		int len = str_len(user_name[i]);
-		send_msg_all(&len,sizeof(int));
-		send_msg_all(&user_name[i], len);
+		int len = strlen(user_name[i]);
+		write_byte(clnt_sock, &len,sizeof(int));
+		write_byte(clnt_sock,user_name[i], len);
 	}
 
 	//event echo
 	while (read_byte(clnt_sock, (void *)&event, sizeof(int))) 
 	{
 		printf("move: %d\n", event);
-		send_msg_all(&event, sizeof(int));
+		send_msg_all((void *)&event, sizeof(int));
 	}
 	
 	
@@ -219,6 +223,10 @@ int main(int argc, char *argv[])
 	if(roadJson())
 		exit(1);
 
+	#ifdef DEBUG
+		fprintf(stderr,"max user : %d\n", max_user);
+	#endif
+
 	pthread_mutex_init(&mutx, NULL);
 	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -232,19 +240,20 @@ int main(int argc, char *argv[])
 	if (listen(serv_sock, 5) == -1)
 		error_handling("listen() error");
 	
+	//todo user max될때 처리
 	while (1)
 	{
 		clnt_adr_sz = sizeof(clnt_adr);
 		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 		
-		pthread_mutex_lock(&mutx); //
+		pthread_mutex_lock(&mutx); 
 		clnt_socks[clnt_cnt++] = clnt_sock;
 		pthread_mutex_unlock(&mutx);
 		
 		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
 		pthread_detach(t_id);
 		
-		printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
+		// printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
 		// if(clnt_cnt == Object->.num_user)
 		// {
 		// 	while(1);
