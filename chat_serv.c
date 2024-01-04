@@ -11,70 +11,32 @@
 
 #define BUF_SIZE 256
 #define MAX_USER 4
+#define NAME_SIZE 16
 
-typedef struct {
-	int x;
-	int y;
-}location_t;
-
-typedef struct {
-	int map_width;
-	int map_height;
-	int timeout;
-	int num_user;
-	char ** user_name;
-	location_t * base_locations; 
-	location_t * user_locations; 
-	int num_item;
-	location_t * item_locations; 
-	int num_block;
-	location_t * block_locations;
-}object_data_t;
-
-int arraySize;
-cJSON* root;
-object_data_t *Object;
+int max_user;
+char * user_name;
+int json_size;
+char * json_serialize;
 
 int clnt_cnt = 0;
 int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
 
-
-void parseEntries(cJSON* entriesArray, location_t* entries, int* numEntries)
-{
-	if (entriesArray == NULL || !cJSON_IsArray(entriesArray)) {
-			entries = NULL;
-			*numEntries = 0;
-			return;
-	}
-
-	int element_cnt = *numEntries;
-
-	for (int i = 0; i < element_cnt; i++) {
-		cJSON* entry = cJSON_GetArrayItem(entriesArray, i);
-		cJSON* inode = cJSON_GetObjectItem(entry, "x");
-		entries[i].x = inode->valueint;
-		inode = cJSON_GetObjectItem(entry, "y");
-		entries[i].y = inode->valueint;
-
-	}
-}
-
-int parseJson() 
+int roadJson() 
 {
 	char filepath[256] = "file.json";
 	FILE *file = fopen(filepath,"r");
 	if(file == NULL){
-		fprintf(stderr,"ERROR: open file");
+	fprintf(stderr,"ERROR: open file");
 		return 1;
 	}
 	struct stat st;
-  if(stat(filepath, &st) == -1){
-  	fprintf(stderr,"ERROR: stat()\n");
+	if(stat(filepath, &st) == -1){
+  		fprintf(stderr,"ERROR: stat()\n");
   	return 1;
-  }
-  int size = st.st_size;
+	}
+	int size = st.st_size;
 
 	char* jsonfile = (char*)malloc(size+1);
 	if(jsonfile == NULL){
@@ -91,52 +53,25 @@ int parseJson()
 	fclose(file);
 	jsonfile[size] = '\0';
 	
-	root = cJSON_Parse(jsonfile);
+	cJSON* root = cJSON_Parse(jsonfile);
 	if (root == NULL) {
 			printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
       return 1;
-  }
-	if(cJSON_IsArray(root)){
-		Object = (object_data_t *)malloc(sizeof(object_data_t));
-		arraySize = cJSON_GetArraySize(root);
+	}
 
-		for (int i = 0; i < arraySize; i++) {
-			cJSON* item = cJSON_GetArrayItem(root, i);
-			if(item != NULL){
-        cJSON* inode = cJSON_GetObjectItem(item, "map_width");
-				Object->map_width = inode->valueint;
-				inode = cJSON_GetObjectItem(item, "map_height");
-				Object->map_height = inode->valueint;
-				inode = cJSON_GetObjectItem(item, "timeout");
-				Object->timeout = inode->valueint;
-				inode = cJSON_GetObjectItem(item, "num_user");
-				Object->num_user = inode->valueint;
-				//printf("%d %d %d\n",Object->map_size, Object->timeout, Object->num_user);
-				cJSON* entries = cJSON_GetObjectItem(item, "base");
-				Object->base_locations = (location_t *)malloc(sizeof(location_t)*Object->num_user);
-				parseEntries(entries, Object->base_locations, &(Object->num_user));
-				
-				entries = cJSON_GetObjectItem(item, "user_location");
-				Object->user_locations = (location_t *)malloc(sizeof(location_t)*Object->num_user);
-				parseEntries(entries, Object->user_locations, &(Object->num_user));
+	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
+	max_user = num_user->valueint;
+	user_name = malloc(sizeof(char)*max_user);
+	for(int i=0; i< max_user; i++)
+	{
+		user_name[i] = malloc(sizeof(char) * NAME_SIZE);
+	}
 
-				inode = cJSON_GetObjectItem(item, "num_item");
-				Object->num_item = inode->valueint;
-
-				entries = cJSON_GetObjectItem(item, "item_location");
-				Object->item_locations = (location_t *)malloc(sizeof(location_t)*Object->num_item);
-				parseEntries(entries, Object->item_locations, &(Object->num_item));
-				
-				inode = cJSON_GetObjectItem(item, "num_block");
-				Object->num_block = inode->valueint;
-
-				entries = cJSON_GetObjectItem(item, "block_location");
-				Object->block_locations = (location_t *)malloc(sizeof(location_t)*Object->num_block);
-				parseEntries(entries, Object->block_locations, &(Object->num_block));
-			}
-
-    }
-  }
+	json_serialize = cJSON_Print(root);
+	json_size = strlen(json_serialize);
+	
+	free(root);
+	free(jsonfile);
 	return 0;
 }
 
@@ -219,57 +154,37 @@ void *handle_clnt(void * arg)
 	str_len = read_byte(clnt_sock, (void *)&name_size, sizeof(int));
 
 	//reciev name
-	char username[20];
-	read_byte(clnt_sock, (void *)username, name_size);
+	// char user_name[20];
+	// read_byte(clnt_sock, (void *)user_name, name_size);
 
-	//send id
+	//reciev name, send id
 	pthread_mutex_lock(&mutx);
 	for (int i = 0; i < clnt_cnt; i++) 
 	{
 		if (clnt_sock == clnt_socks[i])
 		{
 			// printf("id : %d\n", i);
-			// read_byte(clnt_sock, (void *)&Object->user_name[i], name_size);
+			read_byte(clnt_sock, (void *)&user_name[i], name_size);
 			write_byte(clnt_sock, (void *)&i, sizeof(int));
 			break;
 		}
 	}
 	pthread_mutex_unlock(&mutx);
-	
-	//send data
-	write_byte(clnt_sock, (void *)&Object->map_width, sizeof(int));
-	write_byte(clnt_sock, (void *)&Object->map_height, sizeof(int));
-	write_byte(clnt_sock, (void *)&Object->timeout, sizeof(int));
-	write_byte(clnt_sock, (void *)&Object->num_user, sizeof(int));
-	for(int i =0; i< Object->num_user; i++)
-	{
-		write_byte(clnt_sock, (void *)&Object->base_locations[i], sizeof(location_t));
-	}
-	for(int i =0; i< Object->num_user; i++)
-	{
-		write_byte(clnt_sock, (void *)&Object->user_locations[i], sizeof(location_t));
-	}	
-	write_byte(clnt_sock, (void *)&Object->num_item, sizeof(int));
-	for(int i =0; i< Object->num_item; i++)
-	{
-		write_byte(clnt_sock, (void *)&Object->item_locations[i], sizeof(location_t));
-	}
-	write_byte(clnt_sock, (void *)&Object->num_block, sizeof(int));
-	for(int i =0; i< Object->num_item; i++)
-	{
-		write_byte(clnt_sock, (void *)&Object->block_locations[i], sizeof(location_t));
-	}		
 
-	//waiting until all user enter
-	// while(clnt_cnt < Object->num_user);
+	//send json
+	write_byte(clnt_sock, (void *)&json_size, sizeof(int));
+	write_byte(clnt_sock, json_serialize, json_size);
 
-	//send all name 
-	// for(int i=0; i<Object->num_user; i++)
-	// {
-	// 	int name_len = strlen(Object->user_name[i]);
-	// 	send_msg_all((void*)&name_len, sizeof(int));
-	// 	send_msg_all(&Object->num_user[i], name_len);
-	// }
+			
+	while(clnt_cnt < max_user);
+
+	for(int i=0; i< max_user; i++)
+	{
+		int len = str_len(user_name[i]);
+		send_msg_all(&len,sizeof(int));
+		send_msg_all(&user_name[i], len);
+	}
+
 	//event echo
 	while (read_byte(clnt_sock, (void *)&event, sizeof(int))) 
 	{
@@ -301,15 +216,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if( parseJson())
+	if(roadJson())
 		exit(1);
-
-	// Object->user_name = malloc((char*)Object->num_user);
-
-	// for(int i=0; i<Object->num_user; i++)
-	// {
-	// 	Object->user_name[i] = malloc((char) * 16);
-	// }
 
 	pthread_mutex_init(&mutx, NULL);
 	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -343,7 +251,7 @@ int main(int argc, char *argv[])
 		// }
 		
 	}
-	free(Object);
+	free(json_serialize);
 	close(serv_sock);
 	return 0;
 }
