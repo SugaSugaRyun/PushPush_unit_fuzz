@@ -155,9 +155,8 @@ void *handle_clnt(void * arg)
 	}		
 
 
-	
-	while ((str_len = read(clnt_sock, &msg, sizeof(msg))) != 0)
-		send_msg_all(msg, str_len);
+	// while ((str_len = read(clnt_sock, &msg, sizeof(msg))) != 0)
+	// 	send_msg_all(msg, str_len);
 	
 	
 	return NULL;

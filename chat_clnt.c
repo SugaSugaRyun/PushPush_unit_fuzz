@@ -28,11 +28,24 @@ typedef struct object_data{
 	
 char name[NAME_SIZE] = "[DEFAULT]";
 char msg[BUF_SIZE];
-char my_name[BUF_SIZE];
+char my_username[BUF_SIZE] = "me";;
 int my_id = 0;
 object_data_t Model;
-char ** all_user_name;
+char ** all_username;
+//new jinju's 
+char buf[BUF_SIZE] = "";
+char * score;
+char msg_info[BUF_SIZE] = "";
 
+enum entity {
+	EMPTY = 0,
+	BLOCK = -1,
+	ITEM = -9, //item will be -10 ~ -110
+	USER = 1, //user wil be 1 ~ 3
+	BASE = 9, //base will be 10 ~ 30
+};
+char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#dbe87c", "#dbe87c", "#dbe87c", "#c59365", "#f3ebde"};
+enum spans {UP, DOWN, LEFT, RIGHT};
 
 int recv_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *)buf;
@@ -121,12 +134,76 @@ int check_validation(int cmd){
 
 }
 
+void move(int cmd){
+	int user_idx = cmd/4;
+	int span = cmd%4;	
+	
+	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
+	curr_x = target_x = item_target_x = Model.user_locations[user_idx].x;
+	curr_y = target_y = item_target_y = Model.user_locations[user_idx].y;
+
+	switch(span){
+		case UP:		
+			target_y = curr_y - 1;
+			item_target_y = target_y - 1;
+			break;	
+		case DOWN:
+			target_y = curr_y + 1;
+			item_target_y = target_y + 1;
+			break;	
+		case LEFT:
+			target_x = curr_x - 1;
+			item_target_x = target_x - 1;
+			break;	
+		case RIGHT:
+			target_x = curr_x + 1;
+			item_target_x = target_x + 1;
+			break;	
+	}
+
+	int tmp;	
+	if(map[target_x][target_y] == EMPTY){ //empty
+//		swap(curr_x, curr_y, target_x, target_y);
+		tmp = map[curr_x][curr_y];
+		map[curr_x][curr_y] = map[target_x][target_y];
+		map[target_x][target_y] = tmp;
+	}else if(map[target_x][target_y] < ITEM){ //item
+//		swap(target_x, target_y, item_target_x, item_target_y);
+//		swap(curr_x, curr_y, target_x, target_y);
+		if(map[item_target_x][item_target_y] > BASE){
+			map[target_x][target_y] = EMPTY;
+			score[user_idx] ++;
+			//TODO label_update
+			sprintf(msg_info, "%s got the score!", all_usernames[user_idx]);
+			gtk_label_set_text((GtkLabel*)label_info, msg_info);
+			sprintf(msg_info, "%s: %d", all_usernames[user_idx], score[user_idx]);
+			gtk_label_set_text((GtkLabel*)label_score[user_idx], msg_info);
+			
+		}else{
+			tmp = map[target_x][target_y];
+			map[target_x][target_y] = map[item_target_x][item_target_y];
+			map[item_target_x][item_target_y] = tmp;
+		}
+		tmp = map[curr_x][curr_y];
+		map[curr_x][curr_y] = map[target_x][target_y];
+		map[target_x][target_y] = tmp;
+
+	}
+
+	Model.user_locations[user_idx].x = target_x;
+	Model.user_locations[user_idx].y = target_y;
+
+	display_screen();
+	g_print("moved~\n");
+}
+
 void *recv_msg(void * arg)   // read thread main
 {
 	int sock = *((int*)arg);
 	char name_msg[NAME_SIZE+BUF_SIZE];
 	int str_len;
 
+    //recv my id
 	if (recv_bytes(sock, (void*)&my_id, sizeof(int)) == -1) 
     return (void*)-1;
 
@@ -175,28 +252,29 @@ void *recv_msg(void * arg)   // read thread main
 	}
 
 	// receive all player's id, name 
-	all_user_name = malloc(sizeof(char*) * Model.num_user);
+	all_username = malloc(sizeof(char**) * Model.num_user);
 
 	for (int i = 0; i < Model.num_user; i++) {
 		int name_size;
 		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
 			return (void*)-1;
 
-		all_user_name[i] = malloc(sizeof(char) * (name_size + 1)); //여기서 error 발생 
+		all_username[i] = malloc(sizeof(char * ) * (name_size + 1)); //여기서 error 발생 
 
-		if (recv_bytes(sock, (void*)(all_user_name[i]), name_size) == -1)
+		if (recv_bytes(sock, (void*)(all_username[i]), name_size) == -1)
 			return (void*)-1;
 
-		all_user_name[i][name_size] = '\0';
+		all_username[i][name_size] = '\0';
 	}
 
 	//now enter new move 
-	int server_echo;
+	int recv_move;
 	while(1){
-		if(recv_bytes(sock, (void *)&server_echo, sizeof(server_echo)) == -1)
+		if(recv_bytes(sock, (void *)&recv_move, sizeof(server_echo)) == -1)
 			return (void*)-1;
 
-
+        //move
+        move(recv_move);
 	}
 	return NULL;
 }
