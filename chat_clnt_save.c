@@ -352,11 +352,11 @@ int parseJson(char * jsonfile) {
 		cJSON* base_y = cJSON_GetArrayItem(base, 1);
 		Model.users[i].base_loc.x = base_x->valueint;
 		Model.users[i].base_loc.y = base_y->valueint;
-#ifdef DEBUG
+	#ifdef DEBUG
 		printf("name: %s\n",Model.users[i].name);
 		printf("base x: %d\n",Model.users[i].base_loc.x);
 		printf("base y: %d\n",Model.users[i].base_loc.y);
-#endif
+	#endif
 	}
 	
 	cJSON * item = cJSON_GetObjectItem(root, "item_location");
@@ -368,10 +368,10 @@ int parseJson(char * jsonfile) {
 		cJSON* item_y = cJSON_GetArrayItem(item_array, 1);
 		Model.item_locations[i].x = item_x->valueint;
 		Model.item_locations[i].y = item_y->valueint;
-#ifdef DEBUG
+	#ifdef DEBUG
 		printf("item x: %d\n",Model.item_locations[i].x);
 		printf("item y: %d\n",Model.item_locations[i].y);
-#endif
+		#endif
 	}	
 
 	cJSON * block = cJSON_GetObjectItem(root, "block_location");
@@ -383,10 +383,10 @@ int parseJson(char * jsonfile) {
 		cJSON* block_y = cJSON_GetArrayItem(block_array, 1);
 		Model.block_locations[i].x = block_x->valueint;
 		Model.block_locations[i].y = block_y->valueint;
-#ifdef DEBUG
+	#ifdef DEBUG
 		printf("block x: %d\n",Model.block_locations[i].x);
 		printf("block y: %d\n",Model.block_locations[i].y);
-#endif
+	#endif
 	}	
 		
 	return 0;
@@ -395,137 +395,18 @@ int parseJson(char * jsonfile) {
 void *recv_msg(void * arg)   // read thread main
 {
 	int sock = *((int*)arg);
-	char name_msg[NAME_SIZE+BUF_SIZE];
-	int str_len;
-
-    //recv my id
-
-	if (recv_bytes(sock, (void*)&my_id, sizeof(int)) == -1) 
-    	return (void*)-1;
-		
-	fprintf(stderr, "id : %d\n", my_id);
-	
-	// receive map 
-	// if (recv_bytes(sock, (void*)&(Model.map_width), sizeof(int)) == -1)
-	// 	return (void*)-1;
-	// MAP_WIDTH = Model.map_width;
-	// fprintf(stderr, "map_width : %d\n", Model.map_width);
-
-	// if (recv_bytes(sock, (void*)&(Model.map_height), sizeof(int)) == -1)
-	// 	return (void*)-1;
-	
-	// MAP_HEIGHT = Model.map_height;
-	// fprintf(stderr, "map_height : %d\n", Model.map_height);
-	
-	// if (recv_bytes(sock, (void*)&(Model.timeout), sizeof(int)) == -1)
-	// 	return (void*)-1;
-	// fprintf(stderr, "timeout : %d\n", Model.timeout);
-
-	// if (recv_bytes(sock, (void*)&(Model.max_user), sizeof(int)) == -1)
-	// 	return (void*)-1;
-	// fprintf(stderr, "Model.max_user : %d\n", Model.max_user);
-	
-	// Model.base_locations = malloc (sizeof(location_t) * Model.max_user);
-
-	// for (int i = 0; i < Model.max_user; i++) {
-	// 	if (recv_bytes(sock, (void*)&(Model.base_locations[i]), sizeof(location_t)) == -1)
-	// 		return (void*)-1;
-	// 	fprintf(stderr, "base_locations[%d]: x : %d, y: %d\n", i ,Model.base_locations[i].x, Model.base_locations[i].y);
-	// }
-
-	// Model.users = malloc (sizeof(location_t) * Model.max_user);
-
-	// for (int i = 0; i < Model.max_user; i++) {
-	// 	if (recv_bytes(sock, (void*)&(Model.users[i]), sizeof(location_t)) == -1)
-	// 		return (void*)-1;
-	// 	fprintf(stderr, "users[%d]: x : %d, y: %d\n", i ,Model.users[i].x, Model.users[i].y);
-	// }
-
-	// if (recv_bytes(sock, (void*)&(Model.num_item), sizeof(int)) == -1)
-	// 	return (void*)-1;
-	// fprintf(stderr, "Model.num_item : %d\n", Model.num_item);
-	
-	// Model.item_locations = malloc (sizeof(location_t) * Model.num_item);
-
-	// for (int i = 0; i < Model.num_item; i++) {
-	// 	if (recv_bytes(sock, (void*)&(Model.item_locations[i]), sizeof(location_t)) == -1)
-	// 		return (void*)-1;
-	// }
-	
-	// //print check
-	// for (int i = 0; i < Model.num_item; i++) {
-	// 	fprintf(stderr, "item %d x : %d  y: %d\n", i, Model.item_locations[i].x, Model.item_locations[i].y);
-	// }
-
-	// if (recv_bytes(sock, (void*)&(Model.num_block), sizeof(int)) == -1)
-	// 	return (void*)-1;
-
-	// fprintf(stderr, "Model.num_block : %d\n", Model.num_block);
-
-	// Model.block_locations = malloc (sizeof(location_t) * Model.num_block);
-
-	// for (int i = 0; i < Model.num_block; i++) {
-	// 	if (recv_bytes(sock, (void*)&(Model.block_locations[i]), sizeof(location_t)) == -1)
-	// 		return (void*)-1;
-	// }
-	// //print check
-	// for (int i = 0; i < Model.num_block; i++) {
-	// 	fprintf(stderr, "block %d x : %d  y: %d\n", i, Model.block_locations[i].x, Model.block_locations[i].y);
-	// }
-
-	// int tmp = 3;
-	// if(send_bytes(sock, (void *)&tmp, sizeof(tmp)) == -1){
-	// 	fprintf(stderr, "send bytes error\n");
-	// }
-
-    // recv json file
-    int json_size;
-    if (recv_bytes(sock, (void*)&(json_size), sizeof(int)) == -1)
-		return (void*)-1;
-
-    char * json_format = malloc(sizeof(char) * json_size);
-    if (recv_bytes(sock, json_format, json_size) == -1)
-		return (void*)-1;
-
-	parseJson(json_format);
-	// receive all player's name size, name 
-	
-	// all_usernames = malloc(sizeof(char**) * Model.max_user);
-
-	for (int i = 0; i < Model.max_user; i++) {
-		int name_size;
-		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
-			return (void*)-1;
-
-		// all_usernames[i] = malloc(sizeof(char * ) * (name_size + 1)); //여기서 error 발생 
-
-		if (recv_bytes(sock, (void*)(Model.users[i].name), name_size) == -1)
-			return (void*)-1;
-
-		// all_usernames[i][name_size] = '\0';
-	}
-
-	//user가 몇 명인지 받은 후에 malloc해주기
-	// score = (char *) malloc(sizeof(char) * Model.max_user);
-
-	map = (int **) malloc (sizeof(int *) * Model.map_width);
-	for(int i=0;i<Model.map_width;i++){
-		map[i] =(int *) malloc(sizeof(int) * Model.map_height);
-	} 
-
-	label_score = (GtkWidget **) malloc(Model.max_user* sizeof(GtkWidget *));
-	icon_player = (GdkPixbuf **) malloc(Model.max_user * sizeof(GdkPixbuf *));
-
-	// 10초 타이머 설정
-    alarm(60);
-
-	int test = 4;
+	alarm(60);
+	int recv_cmd;
 
 	if(send_bytes(sock, (void *)&test, sizeof(test)) == -1){
 		fprintf(stderr, "send erroir\n");
 	}
+	if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
+			return (void*)-1;
+
+    fprintf(stderr, "From Server : %d", recv_cmd);
+
 	//now enter new move 
-	int recv_cmd;
 	while(1){
 		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
 			return (void*)-1;
@@ -593,8 +474,6 @@ int main(int argc, char *argv[])
 		printf("Usage : %s <IP> <port>\n", argv[0]);
 		exit(1);
 	 }
-	
-	sprintf(name, "[%s]", argv[3]);
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	
 	memset(&serv_addr, 0, sizeof(serv_addr));

@@ -3,26 +3,61 @@
 #include <stdlib.h>
 #include <time.h>
 #include <gtk/gtk.h>
-#define NUM_PLAYER 4
-#define CELL_SIZE 8
-#define MAP_WIDTH 32
-#define MAP_HEIGHT 16
-#define SCORE_BOARD_WIDTH 64
-#define INFO_LABEL_HEIGHT 16
+#include <unistd.h> 
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <pthread.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include "cJSON.h"
+
+#define NAME_SIZE 16
+//#define CELL_SIZE 8
+//#define MAP_WIDTH 32
+//#define MAP_HEIGHT 16
+//#define SCORE_BOARD_WIDTH 64
+//#define INFO_LABEL_HEIGHT 16
 #define BUF_SIZE 128
 #define GDK_KEY_UP 65362
 #define GDK_KEY_DOWN 65364
 #define GDK_KEY_LEFT 65361
 #define GDK_KEY_RIGHT 65363
 
-int map[MAP_WIDTH][MAP_HEIGHT]; 
+typedef struct location{
+    int x;
+    int y;
+} location_t;
+
+typedef struct user{
+    char name[NAME_SIZE];
+    int score;
+    location_t base_loc;
+    location_t user_loc;
+}user_t;
+
+typedef struct object_data{
+    int map_width;
+	int map_height;
+    int timeout;
+    int max_user;
+    struct user * users;
+    location_t * item_locations;
+    location_t * block_locations;
+}object_data_t;
+object_data_t Model;
+
+// int map[MAP_WIDTH][MAP_HEIGHT]; 
+int ** map; // map malloc 해주기 
 char msg_info[BUF_SIZE] = "";
 char buf[BUF_SIZE] = "";
-char my_username[BUF_SIZE] = "me";
-int my_id = 2;
-char all_usernames[NUM_PLAYER][BUF_SIZE];
-char score[NUM_PLAYER];
-void load_game_info();
+// char my_username[BUF_SIZE] = "me"; //replaced with Model.users[my_id].name
+int sock;
+int my_id;
+int num_item;
+int num_block;
+// char all_usernames[NUM_PLAYER][BUF_SIZE]; //replaced with Model.users[].name
+// char score[NUM_PLAYER]; //replaced with Model.users[].score
+
 enum entity {
 	EMPTY = 0,
 	BLOCK = -1,
@@ -33,22 +68,7 @@ enum entity {
 char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#a19b8b", "#ea9574", "#ffca79", "#c79465", "#e3dbcf"};
 enum spans {UP, DOWN, LEFT, RIGHT};
 
-typedef struct location{
-    int x;
-    int y;
-}location_t;
-typedef struct object_data{
-    int map_size;
-    int timeout;
-    int max_user;
-    location_t * base_locations; 
-    location_t * user_locations; 
-    int num_item;
-    location_t * item_locations; 
-    int num_block;
-    location_t * block_locations;
-}object_data_t;
-object_data_t Model;
+
 
 //for GUI
 GtkWidget *window;
@@ -56,125 +76,207 @@ GtkWidget *mat_main, *mat_changed_screen, *mat_board, *label_info, *label_me, *m
 GtkWidget *mat_ans_btn, *mat_sol_btn;
 GtkWidget *btn_solve, *btn_exit, *btn_next, *btn_prev;
 GtkWidget *btn_auto, *btn_up, *btn_down, *btn_left, *btn_right;
-GtkWidget *label_name, *label_score[NUM_PLAYER]; 
-GdkPixbuf *icon, *icon_block[2], *icon_fruit[11], *icon_player[NUM_PLAYER]; 
+GtkWidget *label_name;
+GtkWidget ** label_score; 
+GdkPixbuf *icon, *icon_block[2], *icon_fruit[11];
+GdkPixbuf ** icon_player;
 GdkPixbuf *create_pixbuf(const gchar * filename);
+GtkWidget* create_entity(int id);
 int load_icons();
 int check_map_valid();
 void set_window();
-GtkWidget* create_entity(int id);
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
 void display_screen();
 void add_mat_board();
 void exit_game(GtkWidget* widget);
+void gameover();
+
+//for move handling
 int check_validation(int cmd);
 int move(int cmd, int movement);
-
 void update_model(int id, int x, int y);
 void update_cell();
 int item_idxToId(int idx);
 int item_idToIdx(int id);
 void score_up(int user_idx);
-void gameover();
 
-
+//for networking
 int recv_bytes(int sock_fd, void * buf, size_t len);
 int send_bytes(int sock_fd, void * buf, size_t len);
 void handle_timeout(int signum);
+int parseJson(char * jsonfile);
 void *recv_msg(void * arg);
 
-void test_set(){
-	g_print(" ... test data loading ... \n");
 
-	Model.max_user = 4;
-	Model.user_locations = malloc(sizeof(location_t)*NUM_PLAYER);
-	Model.base_locations = malloc(sizeof(location_t)*NUM_PLAYER);
-	for(int i = 0; i < NUM_PLAYER; i++){
-		score[i] = 0;
-		strcpy(all_usernames[i], "user");
-		g_print("score of %s -> %d\n", all_usernames[i], score[i]);
+// void test_set(){
+// 	g_print(" ... test data loading ... \n");
 
-	}
-	strcpy(all_usernames[my_id], my_username);	
-	Model.user_locations[0].x = 1;
-	Model.user_locations[0].y = 0;
-	Model.base_locations[0].x = 0;
-	Model.base_locations[0].y = 0;
+// 	Model.max_user = 4;
+// 	Model.user_locations = malloc(sizeof(location_t)*NUM_PLAYER);
+// 	Model.base_locations = malloc(sizeof(location_t)*NUM_PLAYER);
+// 	for(int i = 0; i < NUM_PLAYER; i++){
+// 		score[i] = 0;
+// 		strcpy(all_usernames[i], "user");
+// 		g_print("score of %s -> %d\n", all_usernames[i], score[i]);
 
-	Model.user_locations[1].x = MAP_WIDTH-2;
-	Model.user_locations[1].y = 0;
-	Model.base_locations[1].x = MAP_WIDTH-1;
-	Model.base_locations[1].y = 0;
+// 	}
+// 	strcpy(all_usernames[my_id], my_username);	
+// 	Model.user_locations[0].x = 1;
+// 	Model.user_locations[0].y = 0;
+// 	Model.base_locations[0].x = 0;
+// 	Model.base_locations[0].y = 0;
 
-	Model.user_locations[2].x = 1;
-	Model.user_locations[2].y = MAP_HEIGHT-1;
-	Model.base_locations[2].x = 0;
-	Model.base_locations[2].y = MAP_HEIGHT-1;
+// 	Model.user_locations[1].x = MAP_WIDTH-2;
+// 	Model.user_locations[1].y = 0;
+// 	Model.base_locations[1].x = MAP_WIDTH-1;
+// 	Model.base_locations[1].y = 0;
 
-	Model.user_locations[3].x = MAP_WIDTH-2;
-	Model.user_locations[3].y = MAP_HEIGHT-2;
-	Model.base_locations[3].x = MAP_WIDTH-1;
-	Model.base_locations[3].y = MAP_HEIGHT-1;
+// 	Model.user_locations[2].x = 1;
+// 	Model.user_locations[2].y = MAP_HEIGHT-1;
+// 	Model.base_locations[2].x = 0;
+// 	Model.base_locations[2].y = MAP_HEIGHT-1;
+
+// 	Model.user_locations[3].x = MAP_WIDTH-2;
+// 	Model.user_locations[3].y = MAP_HEIGHT-2;
+// 	Model.base_locations[3].x = MAP_WIDTH-1;
+// 	Model.base_locations[3].y = MAP_HEIGHT-1;
 
 
 
-    int randx, randy;
-	for(int i = 0; i < MAP_WIDTH; i++){
-		for(int j = 0; j < MAP_HEIGHT; j++){
-			map[i][j] = EMPTY;
-		}
-	}
+//     int randx, randy;
+// 	for(int i = 0; i < MAP_WIDTH; i++){
+// 		for(int j = 0; j < MAP_HEIGHT; j++){
+// 			map[i][j] = EMPTY;
+// 		}
+// 	}
 
-	Model.num_block = 50;
-	Model.block_locations = malloc(sizeof(location_t)*Model.num_block);
-	for (int i = 0; i < Model.num_block; i++) {
-        randx = rand() % MAP_WIDTH;
-        randy = rand() % MAP_HEIGHT;
-		Model.block_locations[i].x = randx;
-		Model.block_locations[i].y = randy;
-    }
+// 	Model.num_block = 50;
+// 	Model.block_locations = malloc(sizeof(location_t)*Model.num_block);
+// 	for (int i = 0; i < Model.num_block; i++) {
+//         randx = rand() % MAP_WIDTH;
+//         randy = rand() % MAP_HEIGHT;
+// 		Model.block_locations[i].x = randx;
+// 		Model.block_locations[i].y = randy;
+//     }
 
-	Model.num_item = 20;
-	Model.item_locations = malloc(sizeof(location_t)*Model.num_item);	
-	for (int i = 0; i < Model.num_item; i++) {
-        randx = rand() % MAP_WIDTH;
-        randy = rand() % MAP_HEIGHT;
-		Model.item_locations[i].x = randx;
-		Model.item_locations[i].y = randy;
-    }
+// 	Model.num_item = 20;
+// 	Model.item_locations = malloc(sizeof(location_t)*Model.num_item);	
+// 	for (int i = 0; i < Model.num_item; i++) {
+//         randx = rand() % MAP_WIDTH;
+//         randy = rand() % MAP_HEIGHT;
+// 		Model.item_locations[i].x = randx;
+// 		Model.item_locations[i].y = randy;
+//     }
 
-	update_cell();
+// 	update_cell();
 
-}
+// }
 
 int main(int argc, char *argv[]) {
 
 	//get the username from stdin 
 	//TODO maybe need change to args
+
+	signal(SIGALRM, handle_timeout);
+
+    
+	struct sockaddr_in serv_addr;
+	pthread_t snd_thread, rcv_thread;
+	void * thread_return;
+
+	if (argc != 3) {
+		printf("Usage : %s <IP> <port>\n", argv[0]);
+		exit(1);
+	 }
+	sock = socket(PF_INET, SOCK_STREAM, 0);
+	
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
+	serv_addr.sin_port = htons(atoi(argv[2]));
+	  
+	if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
+	{
+		fprintf(stderr, "ERROR: connect() error\n");
+		exit(1);
+	}
+	
 	while(1){
 		printf("enter your name: ");
-		if((scanf("%s", my_username) != 1) || 0 /*TODO need another checking?*/){
+		if((scanf("%s", buf) != 1) || 0 /*TODO need another checking?*/){
 			printf("invalid name. please pick another one.");	
 			continue;
 		}else break;
 	}
+	
+	int name_size = strlen(buf);
+	if(send_bytes(sock, (void *)&name_size, sizeof(int)) == -1)
+		return 1;
 
+	if(send_bytes(sock, buf, strlen(buf)) == -1)
+		return 1;
+
+    //recv my id
+	if (recv_bytes(sock, (void*)&my_id, sizeof(int)) == -1) 
+    	return 1;
+		
+	fprintf(stderr, "id : %d\n", my_id);
+	
+
+    // recv json file
+    int json_size;
+    if (recv_bytes(sock, (void*)&(json_size), sizeof(int)) == -1)
+		return 1;
+
+    char * json_format = malloc(sizeof(char) * json_size);
+    if (recv_bytes(sock, json_format, json_size) == -1)
+		return 1;
+
+	parseJson(json_format);
+	
+	// receive all player's name size, name 
+	for (int i = 0; i < Model.max_user; i++) {
+		int name_size;
+		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
+			return 1;
+
+	
+		if (recv_bytes(sock, (void*)(Model.users[i].name), name_size) == -1)
+			return 1;
+
+		printf("id : %d name : %s\n",i,Model.users[i].name);
+	}
+
+	map = (int **) malloc (sizeof(int *) * Model.map_width);
+	for(int i=0;i<Model.map_width;i++){
+		map[i] =(int *) malloc(sizeof(int) * Model.map_height);
+	} 
+
+	label_score = (GtkWidget **) malloc(Model.max_user* sizeof(GtkWidget *));
+	icon_player = (GdkPixbuf **) malloc(Model.max_user * sizeof(GdkPixbuf *));
+
+//-------------------------------
 	//load icons from icons dir
 	if(load_icons()) {
 		g_print("failed to load icons\n");
-		return -1;
+		return 1;
   	}
-
 	//set the testing data 
-	// TODO can be customize
-	test_set();
+	// TODO fill structure
+	// test_set();
 	srand((unsigned int)time(0));
 
 	//set the GUI
 	gtk_init(&argc, &argv); //init GTK by args
 	 //key pressed
     g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
+	
+	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
 	set_window();
+
+	pthread_join(rcv_thread, &thread_return);
+	free(map);
+	close(sock);  
 
  	return 0;
 }
@@ -195,9 +297,10 @@ GdkPixbuf *create_pixbuf(const gchar * filename) {
 
 //load icons needed
 //0 on success, 1 on failure
+
 int load_icons(){
    	GdkPixbuf *pixbuf;
-	for(int i = 0; i < NUM_PLAYER; i++){
+	for(int i = 0; i < Model.max_user; i++){
 		sprintf(buf, "icons/user%d.png", i);
 		if((pixbuf = create_pixbuf(buf)) == NULL) return 1;
 		else g_print("loading %s...\n", buf);
@@ -227,14 +330,8 @@ int load_icons(){
 
 //load game information from server and save map[]
 //TODO replace test to this one when done
-void load_game_info(){
-
-
-
-
-
-}
-
+//void load_game_info(){
+//}
 
 //GUI: set the main window
 void set_window(){
@@ -252,7 +349,6 @@ void set_window(){
   //change the icon of page(for cuteness)
   icon = create_pixbuf("icons/catIcon.png");
   gtk_window_set_icon(GTK_WINDOW(window), icon);
-
   
   //set main matrix
   mat_main = gtk_table_new(8, 8-1, TRUE);
@@ -312,10 +408,10 @@ void display_screen(){
   //set screen matrix
   if(mat_changed_screen == NULL){ //initially once
 	mat_screen = gtk_fixed_new();
-	mat_changed_screen = gtk_table_new(MAP_WIDTH, MAP_HEIGHT, TRUE);
-	mat_fixed_screen = gtk_table_new(MAP_WIDTH, MAP_HEIGHT, TRUE);
-    for (int i = 0; i < MAP_WIDTH; i++) {
-      for (int j = 0; j < MAP_HEIGHT; j++) {
+	mat_changed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
+	mat_fixed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
+    for (int i = 0; i < Model.map_width; i++) {
+      for (int j = 0; j < Model.map_height; j++) {
 		if(map[i][j] == BLOCK || map[i][j] > BASE){
 			GtkWidget* sprite = create_entity(map[i][j]);
 			if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_fixed_screen), sprite, i, i+1, j, j+1);
@@ -326,8 +422,8 @@ void display_screen(){
 	gtk_fixed_put(GTK_FIXED(mat_screen), mat_changed_screen, 0, 0);
   }else gtk_container_foreach(GTK_CONTAINER(mat_changed_screen), (GtkCallback)gtk_widget_destroy, NULL); 
 
-  for (int i = 0; i < MAP_WIDTH; i++) {
-    for (int j = 0; j < MAP_HEIGHT; j++) {
+  for (int i = 0; i < Model.map_width; i++) {
+    for (int j = 0; j < Model.map_height; j++) {
 		if(map[i][j] == BLOCK || map[i][j] > BASE) continue;
 		GtkWidget* sprite = create_entity(map[i][j]);
 		if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_changed_screen), sprite, i, i+1, j, j+1);
@@ -348,7 +444,7 @@ void add_mat_board(){
   mat_board = gtk_table_new(board_width, 10, TRUE);
 
   GtkWidget* line1 = gtk_hseparator_new();
-  sprintf(buf, "Good luck, %s!", my_username);
+  sprintf(buf, "Good luck, %s!", Model.users[my_id].name);
   label_name = gtk_label_new(buf);
   GtkWidget* sprite = gtk_image_new_from_pixbuf(icon_player[my_id]);
   GtkWidget* line2 = gtk_hseparator_new();
@@ -361,9 +457,8 @@ void add_mat_board(){
   gtk_table_attach_defaults(GTK_TABLE(mat_board), label_title, 0, board_width+1, 4, 5);
 	
   GtkWidget* score_board = gtk_vbox_new(TRUE, 10);
-  for(int i = 0; i < NUM_PLAYER; i++){
-	//TODO this part display the score (global array)
-	sprintf(msg_info, "%s: %d", all_usernames[i], score[i]);		
+  for(int i = 0; i < Model.max_user; i++){
+	sprintf(msg_info, "%s: %d", Model.users[i].name, Model.users[i].score);		
 	label_score[i] = gtk_label_new(msg_info);
 	gtk_container_add(GTK_CONTAINER(score_board), label_score[i]);
   } 
@@ -388,8 +483,8 @@ int check_validation(int cmd){
 	int span = cmd%4;	
 	
 	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
-	curr_x = target_x = item_target_x = Model.user_locations[user_idx].x;
-	curr_y = target_y = item_target_y = Model.user_locations[user_idx].y;
+	curr_x = target_x = item_target_x = Model.users[user_idx].user_loc.x;
+	curr_y = target_y = item_target_y = Model.users[user_idx].user_loc.y;
 	switch(span){
 		case UP:		
 			if((target_y = (curr_y - 1)) < 0) return 0;//out of array
@@ -405,11 +500,11 @@ int check_validation(int cmd){
 			break;
 
 		case DOWN:
-			if((target_y = (curr_y + 1)) > MAP_HEIGHT) return 0;//out of array
+			if((target_y = (curr_y + 1)) > Model.map_height) return 0;//out of array
 			if(map[target_x][target_y] == EMPTY) return 1; //empty
 			if(map[target_x][target_y] > BASE) return 1; //base
 			else if(map[target_x][target_y] < ITEM){ 
-				if((item_target_y = (target_y + 1)) > MAP_HEIGHT) return 0; //item and non-movabel
+				if((item_target_y = (target_y + 1)) > Model.map_height) return 0; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return map[target_x][target_y]; //item and movable
 				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return (0 - map[target_x][target_y]);
 				if(map[item_target_x][item_target_y] > BASE) return map[target_x][target_y]; //item and movable as other's base
@@ -433,11 +528,11 @@ int check_validation(int cmd){
 			break;
 
 		case RIGHT:
-			if((target_x = (curr_x + 1)) > MAP_WIDTH) return 0;//out of array
+			if((target_x = (curr_x + 1)) > Model.map_width) return 0;//out of array
 			if(map[target_x][target_y] == EMPTY) return 1; //empty
 			if(map[target_x][target_y] > BASE) return 1; //base
 			else if(map[target_x][target_y] < ITEM){ 
-				if((item_target_x = (target_x + 1)) > MAP_WIDTH) return 0; //item and non-movabel
+				if((item_target_x = (target_x + 1)) > Model.map_width) return 0; //item and non-movabel
 				if(map[item_target_x][item_target_y] == EMPTY) return map[target_x][target_y]; //item and movable
 				if((map[item_target_x][item_target_y] > BASE) && ((map[item_target_x][item_target_y]/10-1) == user_idx)) return (0 - map[target_x][target_y]);
 				if(map[item_target_x][item_target_y] > BASE) return map[target_x][target_y]; //item and movable as other's base
@@ -457,8 +552,8 @@ int move(int cmd, int movement){
 	int user_idx = cmd/Model.max_user;
 	int span = cmd%Model.max_user;	
 	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
-	curr_x = target_x = item_target_x = Model.user_locations[user_idx].x;
-	curr_y = target_y = item_target_y = Model.user_locations[user_idx].y;
+	curr_x = target_x = item_target_x = Model.users[user_idx].user_loc.x;
+	curr_y = target_y = item_target_y = Model.users[user_idx].user_loc.y;
 	switch(span){
 		case UP:		
 			target_y = curr_y - 1;
@@ -485,7 +580,7 @@ int move(int cmd, int movement){
 		g_print("move for success %d!!!\n", movement);	
 		update_model(0-movement, -1, -1);	
 		score_up(user_idx);
-			if(-- Model.num_item <= 0) gameover();
+			if(--num_item <= 0) gameover();
 	}
 	update_model(user_idx+1, target_x,target_y);	
 
@@ -537,8 +632,8 @@ void update_model(int id, int x, int y){
 		g_print("item model updated\n");
 	}else{
 		idx = id - 1; 
-		Model.user_locations[idx].x = x;	
-		Model.user_locations[idx].y = y;	
+		Model.users[idx].user_loc.x = x;	
+		Model.users[idx].user_loc.y = y;	
 		g_print("user model updated\n");
 	}
 	update_cell();
@@ -548,24 +643,24 @@ void update_model(int id, int x, int y){
 void update_cell(){
 
 	//init
-	for(int i = 0; i < MAP_WIDTH; i++){
-		for(int j = 0; j < MAP_HEIGHT; j++){
+	for(int i = 0; i < Model.map_width; i++){
+		for(int j = 0; j < Model.map_height; j++){
 			map[i][j] = EMPTY;
 		}
 	}
 	int asdf = 0;
 	//base and user
-	for(int i = 0; i < NUM_PLAYER; i++){
+	for(int i = 0; i < Model.max_user; i++){
 		int id = i+1;
-		map[Model.user_locations[i].x][Model.user_locations[i].y] = id;
-		map[Model.base_locations[i].x][Model.base_locations[i].y] = id*10;
+		map[Model.users[i].user_loc.x][Model.users[i].user_loc.y] = id;
+		map[Model.users[i].base_loc.x][Model.users[i].base_loc.y] = id*10;
 	}
 	//block
-	for (int i = 0; i < Model.num_block; i++) {
+	for (int i = 0; i < num_block; i++) {
 		map[Model.block_locations[i].x][Model.block_locations[i].y] = BLOCK;
     }
 	//item
-	for (int i = 0; i < Model.num_item; i++) {
+	for (int i = 0; i < num_item; i++) {
 		int item_id = item_idxToId(i);
 		map[Model.item_locations[i].x][Model.item_locations[i].y] = item_id;
     }
@@ -585,11 +680,11 @@ int item_idToIdx(int id){
 
 void score_up(int user_idx){
 	
-	score[user_idx] ++;
-	sprintf(msg_info, "%s got the score!", all_usernames[user_idx]);
-	g_print("%s got the score!\n", all_usernames[user_idx]);
+	Model.users[user_idx].score ++;
+	sprintf(msg_info, "%s got the score!", Model.users[user_idx].name);
+	g_print("%s got the score!\n", Model.users[user_idx].name);
 	gtk_label_set_text((GtkLabel*)label_info, msg_info);
-	sprintf(msg_info, "%s: %d", all_usernames[user_idx], score[user_idx]);
+	sprintf(msg_info, "%s: %d", Model.users[user_idx].name, Model.users[user_idx].score);
 	gtk_label_set_text((GtkLabel*)label_score[user_idx], msg_info);
 
 }
@@ -602,6 +697,154 @@ void gameover(){
 
 }
 
+int parseJson(char * jsonfile) {
+    cJSON* root;
 
+	root = cJSON_Parse(jsonfile);
+	if (root == NULL) {
+		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
+        	return 1;
+    	}
+        
+	cJSON* timeout = cJSON_GetObjectItem(root, "timeout");
+	Model.timeout = timeout->valueint;
+	cJSON* max_user = cJSON_GetObjectItem(root, "max_user");
+	Model.max_user = max_user->valueint;
 
+	cJSON* map = cJSON_GetObjectItem(root, "map");
+	cJSON* map_width = cJSON_GetObjectItem(map, "map_width");
+	Model.map_width = map_width->valueint;	
+	cJSON* map_height = cJSON_GetObjectItem(map, "map_height");
+	Model.map_height = map_height->valueint;
 
+	cJSON* user = cJSON_GetObjectItem(root, "user");
+	Model.max_user = cJSON_GetArraySize(user);
+	Model.users = (struct user *)malloc(sizeof(struct user) * Model.max_user);
+	for(int i = 0; i < Model.max_user; i++){
+		memset(Model.users[i].name, 0, sizeof(NAME_SIZE));
+		Model.users[i].score = 0;
+		cJSON* user_array = cJSON_GetArrayItem(user,i);
+	       	cJSON* base = cJSON_GetObjectItem(user_array,"base"); 
+		cJSON* base_x = cJSON_GetArrayItem(base, 0);
+		cJSON* base_y = cJSON_GetArrayItem(base, 1);
+		Model.users[i].base_loc.x = base_x->valueint;
+		Model.users[i].base_loc.y = base_y->valueint;
+	#ifdef DEBUG
+		printf("name: %s\n",Model.users[i].name);
+		printf("base x: %d\n",Model.users[i].base_loc.x);
+		printf("base y: %d\n",Model.users[i].base_loc.y);
+	#endif
+	}
+	
+	cJSON * item = cJSON_GetObjectItem(root, "item_location");
+	num_item = cJSON_GetArraySize(item);
+	Model.item_locations = (struct location *)malloc(sizeof(struct location) * num_item); 
+	for(int i = 0; i < num_item; i++){
+		cJSON* item_array = cJSON_GetArrayItem(item,i);
+		cJSON* item_x = cJSON_GetArrayItem(item_array, 0);
+		cJSON* item_y = cJSON_GetArrayItem(item_array, 1);
+		Model.item_locations[i].x = item_x->valueint;
+		Model.item_locations[i].y = item_y->valueint;
+	#ifdef DEBUG
+		printf("item x: %d\n",Model.item_locations[i].x);
+		printf("item y: %d\n",Model.item_locations[i].y);
+		#endif
+	}	
+
+	cJSON * block = cJSON_GetObjectItem(root, "block_location");
+	num_block = cJSON_GetArraySize(block);
+	Model.block_locations = (struct location *)malloc(sizeof(struct location) * num_block); 
+	for(int i = 0; i < num_block; i++){
+		cJSON* block_array = cJSON_GetArrayItem(block,i);
+		cJSON* block_x = cJSON_GetArrayItem(block_array, 0);
+		cJSON* block_y = cJSON_GetArrayItem(block_array, 1);
+		Model.block_locations[i].x = block_x->valueint;
+		Model.block_locations[i].y = block_y->valueint;
+	#ifdef DEBUG
+		printf("block x: %d\n",Model.block_locations[i].x);
+		printf("block y: %d\n",Model.block_locations[i].y);
+	#endif
+	}	
+		
+	return 0;
+}
+
+void handle_timeout(int signum) {
+    // 이 함수가 호출되면 10초가 경과했음을 의미
+	int game_over = 16;
+
+	send_bytes(sock,(void *)&game_over,sizeof(game_over));
+    //gameover 신호 보내기 
+
+    printf("10 seconds have passed. Do something!\n");
+}
+
+void *recv_msg(void * arg)   // read thread main
+{
+	int sock = *((int*)arg);
+	alarm(60);
+	int recv_cmd;
+
+	if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
+			return (void*)-1;
+
+    fprintf(stderr, "From Server : %d", recv_cmd);
+
+	//now enter new move 
+	while(1){
+		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
+			return (void*)-1;
+
+        fprintf(stderr, "From Server : %d", recv_cmd);
+		continue;
+		if(recv_cmd == 16){ // game over 
+			// TODO game over 
+			strcpy(msg_info, "Game over!");
+			gtk_label_set_text((GtkLabel*)label_info, msg_info);
+		}
+		//move
+		//TODO here here
+
+        int movement;
+		if((movement = check_validation(recv_cmd)) == 0) g_print("invalid movement!\n");
+		else{	//TODO place send() here, and move this code to recv();
+			move(recv_cmd, movement);
+			display_screen();
+		} 
+	}
+	return NULL;
+}
+int recv_bytes(int sock_fd, void * buf, size_t len){
+    char * p = (char *)buf;
+    size_t acc = 0;
+
+    while(acc < len)
+    {
+        size_t recved;
+        recved = recv(sock_fd, p, len - acc, 0);
+        if(recved  == -1 || recved == 0){
+            return -1;
+        }
+        p+= recved ;
+        acc += recved ;
+    }
+    return 0;
+}
+
+int send_bytes(int sock_fd, void * buf, size_t len){
+    char * p = (char *) buf;
+    size_t acc = 0;
+
+    while(acc < len)
+    {
+        size_t sent;
+        sent = send(sock_fd, p, len - acc, 0);
+        if(sent == -1 || sent == 0){
+            return -1;
+        }
+
+        p+= sent;
+        acc += sent;
+    }
+    return 0;
+}
