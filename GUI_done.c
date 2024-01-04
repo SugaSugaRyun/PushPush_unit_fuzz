@@ -333,6 +333,7 @@ int load_icons(){
 //}
 
 //GUI: set the main window
+//TODO make prthread
 void set_window(){
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);//make window
@@ -402,6 +403,14 @@ GtkWidget* create_entity(int id){
 //TODO need to be updated to display by map[]
 void display_screen(){
 
+
+
+	for (int i = 0; i < Model.map_width; i++) {
+      for (int j = 0; j < Model.map_height; j++) {
+		g_print("%3d ",map[i][j]);
+	  }
+	  g_print("\n");
+    }
   //set screen matrix
   if(mat_changed_screen == NULL){ //initially once
 	mat_screen = gtk_fixed_new();
@@ -643,6 +652,7 @@ void update_cell(){
 		int id = i+1;
 		map[Model.users[i].user_loc.x][Model.users[i].user_loc.y] = id;
 		map[Model.users[i].base_loc.x][Model.users[i].base_loc.y] = id*10;
+		g_print("user %d  x : %d, y : %d, base %d, %d\n",i, Model.users[i].user_loc.x,Model.users[i].user_loc.y, Model.users[i].base_loc.x,Model.users[i].base_loc.y);
 	}
 	//block
 	for (int i = 0; i < num_block; i++) {
@@ -713,9 +723,14 @@ int parseJson(char * jsonfile) {
 		memset(Model.users[i].name, 0, sizeof(NAME_SIZE));
 		Model.users[i].score = 0;
 		cJSON* user_array = cJSON_GetArrayItem(user,i);
-	       	cJSON* base = cJSON_GetObjectItem(user_array,"base"); 
+	    cJSON* base = cJSON_GetObjectItem(user_array,"base"); 
 		cJSON* base_x = cJSON_GetArrayItem(base, 0);
 		cJSON* base_y = cJSON_GetArrayItem(base, 1);
+		cJSON* user_location = cJSON_GetObjectItem(user_array,"location"); 
+		cJSON* user_x = cJSON_GetArrayItem(user_location, 0);
+		cJSON* user_y = cJSON_GetArrayItem(user_location, 1);
+		Model.users[i].user_loc.x = user_x->valueint;
+		Model.users[i].user_loc.y = user_y->valueint;
 		Model.users[i].base_loc.x = base_x->valueint;
 		Model.users[i].base_loc.y = base_y->valueint;
 	#ifdef DEBUG
@@ -774,17 +789,13 @@ void *recv_msg(void * arg)   // read thread main
 	alarm(60);
 	int recv_cmd;
 
-	if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
-			return (void*)-1;
-
-    fprintf(stderr, "From Server : %d\n", recv_cmd);
 
 	//now enter new move 
 	while(1){
 		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
 			return (void*)-1;
 
-        fprintf(stderr, "From Server : %d", recv_cmd);
+        fprintf(stderr, "From Server : %d\n", recv_cmd);
 		continue;
 		if(recv_cmd == 16){ // game over 
 			// TODO game over 

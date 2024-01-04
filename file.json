@@ -4,7 +4,7 @@
 "max_user" : 2,
 "map": {
 	"map_width" : 10,
-	"map_height" : 8
+	"map_height" : 10
 },
 
 "user": 
