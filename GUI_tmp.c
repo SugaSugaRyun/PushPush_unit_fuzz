@@ -71,8 +71,11 @@ void add_mat_board();
 void exit_game(GtkWidget* widget);
 int check_validation(int cmd);
 void move(int cmd);
+int recv_bytes(int sock_fd, void * buf, size_t len);
+int send_bytes(int sock_fd, void * buf, size_t len);
+void handle_timeout(int signum);
+void *recv_msg(void * arg);
 
-//for testing...
 void test_set(){
 	g_print(" ... test data loading ... \n");
 
@@ -423,13 +426,26 @@ int check_validation(int cmd){
 
 }
 
+
+
 //update cells by cmd(0-15), 
-//return 0 on validation of moving, return 1 on invalid moving
+//return 0 on normal moving, return 1 on get-score moving
 //TODO 
-void move(int cmd){
-	int user_idx = cmd/4;
-	int span = cmd%4;	
-	
+int move(int cmd, int movement){
+	int user_idx = cmd/Model.max_user;
+	int span = cmd%Model.max_user;	
+	int target_x = 
+
+	if(movement < ITEM){ //valid and item-empty
+
+	}else if(movement > (0-ITEM)){ //valid and item-scoreup
+
+	}
+
+	update_model(user_idx, 
+
+
+/*	
 	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
 	curr_x = target_x = item_target_x = Model.user_locations[user_idx].x;
 	curr_y = target_y = item_target_y = Model.user_locations[user_idx].y;
@@ -483,6 +499,8 @@ void move(int cmd){
 	Model.user_locations[user_idx].y = target_y;
 
 	display_screen();
+*/
+
 }
 
 gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
@@ -507,14 +525,23 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 			cmd += 3;
             break;
     }
-    g_print("%s\n", greeting);
-	//TODO temporary... need to move this to recv function
-	//move(cmd);
-	if(check_validation(cmd)) g_print("invalid movement!\n");
-	else move(cmd);
 
-    return TRUE;
+	if(check_validation(cmd)) g_print("invalid movement!\n");
+	else{	//TODO place send() here, and move this code to recv();
+		move(cmd);
+		display_screen();
+		g_print("%s\n", greeting);
+	}    
+
+	return TRUE;
 }
+
+int recv_bytes(int sock_fd, void * buf, size_t len);
+int send_bytes(int sock_fd, void * buf, size_t len);
+void handle_timeout(int signum);
+void *recv_msg(void * arg);
+
+
 
 
 
