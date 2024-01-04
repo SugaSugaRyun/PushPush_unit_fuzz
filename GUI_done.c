@@ -178,6 +178,7 @@ int main(int argc, char *argv[]) {
 	//TODO maybe need change to args
 
 	signal(SIGALRM, handle_timeout);
+	gtk_init(&argc, &argv); //init GTK by args
 
     
 	struct sockaddr_in serv_addr;
@@ -255,6 +256,7 @@ int main(int argc, char *argv[]) {
 	label_score = (GtkWidget **) malloc(Model.max_user* sizeof(GtkWidget *));
 	icon_player = (GdkPixbuf **) malloc(Model.max_user * sizeof(GdkPixbuf *));
 
+	update_cell();
 //-------------------------------
 	//load icons from icons dir
 	if(load_icons()) {
@@ -266,14 +268,11 @@ int main(int argc, char *argv[]) {
 	// test_set();
 	srand((unsigned int)time(0));
 
-	//set the GUI
-	gtk_init(&argc, &argv); //init GTK by args
-	 //key pressed
-    g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
+	//key pressed
 	
+    g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
 	set_window();
-
 	pthread_join(rcv_thread, &thread_return);
 	free(map);
 	close(sock);  
@@ -370,8 +369,6 @@ void set_window(){
   gtk_main(); //enter the GTK main loop
 
 }
-
-
 
 //create entity Widget from ids, return widget* or NULL on id-empty
 GtkWidget* create_entity(int id){
@@ -500,7 +497,7 @@ int check_validation(int cmd){
 			break;
 
 		case DOWN:
-			if((target_y = (curr_y + 1)) > Model.map_height) return 0;//out of array
+			if((target_y = (curr_y + 1)) > Model.map_height -1 ) return 0;//out of array
 			if(map[target_x][target_y] == EMPTY) return 1; //empty
 			if(map[target_x][target_y] > BASE) return 1; //base
 			else if(map[target_x][target_y] < ITEM){ 
@@ -528,7 +525,7 @@ int check_validation(int cmd){
 			break;
 
 		case RIGHT:
-			if((target_x = (curr_x + 1)) > Model.map_width) return 0;//out of array
+			if((target_x = (curr_x + 1)) > Model.map_width -1 ) return 0;//out of array
 			if(map[target_x][target_y] == EMPTY) return 1; //empty
 			if(map[target_x][target_y] > BASE) return 1; //base
 			else if(map[target_x][target_y] < ITEM){ 
@@ -609,15 +606,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
             break;
     }
 
-	g_print("cmd: %d\n", cmd);
-
-	int movement;
-	if((movement = check_validation(cmd)) == 0) g_print("invalid movement!\n");
-	else{	//TODO place send() here, and move this code to recv();
-		move(cmd, movement);
-		display_screen();
-		g_print("%s\n", greeting);
-	}    
+	send_bytes(sock, (void*)&cmd, sizeof(int));   
 
 	return TRUE;
 }
@@ -648,7 +637,7 @@ void update_cell(){
 			map[i][j] = EMPTY;
 		}
 	}
-	int asdf = 0;
+
 	//base and user
 	for(int i = 0; i < Model.max_user; i++){
 		int id = i+1;
@@ -788,7 +777,7 @@ void *recv_msg(void * arg)   // read thread main
 	if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
 			return (void*)-1;
 
-    fprintf(stderr, "From Server : %d", recv_cmd);
+    fprintf(stderr, "From Server : %d\n", recv_cmd);
 
 	//now enter new move 
 	while(1){
