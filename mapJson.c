@@ -33,7 +33,7 @@ typedef struct object_data{
 }object_data_t;
 
 cJSON* root;
-object_data_t *Object;
+object_data_t Object;
 
 int parseJson() {
 
@@ -72,65 +72,64 @@ int parseJson() {
 		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
         	return 1;
     	}
-	Object = (object_data_t *)malloc(sizeof(object_data_t));
         
 	cJSON* timeout = cJSON_GetObjectItem(root, "timeout");
-	Object->timeout = timeout->valueint;
+	Object.timeout = timeout->valueint;
 	cJSON* max_user = cJSON_GetObjectItem(root, "max_user");
-	Object->max_user = max_user->valueint;
+	Object.max_user = max_user->valueint;
 
 	cJSON* map = cJSON_GetObjectItem(root, "map");
 	cJSON* map_width = cJSON_GetObjectItem(map, "map_width");
-	Object->map_width = map_width->valueint;	
+	Object.map_width = map_width->valueint;	
 	cJSON* map_height = cJSON_GetObjectItem(map, "map_height");
-	Object->map_height = map_height->valueint;
+	Object.map_height = map_height->valueint;
 
 	cJSON* user = cJSON_GetObjectItem(root, "user");
 	int num_user = cJSON_GetArraySize(user);
-	Object->users = (struct user *)malloc(sizeof(struct user) * num_user);
+	Object.users = (struct user *)malloc(sizeof(struct user) * num_user);
 	for(int i = 0; i < num_user; i++){
-		memset(Object->users->name, 0, sizeof(NAME_SIZE));
-		Object->users->score = 0;
+		memset(Object.users->name, 0, sizeof(NAME_SIZE));
+		Object.users->score = 0;
 		cJSON* user_array = cJSON_GetArrayItem(user,i);
 	       	cJSON* base = cJSON_GetObjectItem(user_array,"base"); 
 		cJSON* base_x = cJSON_GetArrayItem(base, 0);
 		cJSON* base_y = cJSON_GetArrayItem(base, 1);
-		Object->users[i].base_loc.x = base_x->valueint;
-		Object->users[i].base_loc.y = base_y->valueint;
+		Object.users[i].base_loc.x = base_x->valueint;
+		Object.users[i].base_loc.y = base_y->valueint;
 #ifdef DEBUG
-		printf("name: %s\n",Object->users->name);
-		printf("base x: %d\n",Object->users[i].base_loc.x);
-		printf("base y: %d\n",Object->users[i].base_loc.y);
+		printf("name: %s\n",Object.users->name);
+		printf("base x: %d\n",Object.users[i].base_loc.x);
+		printf("base y: %d\n",Object.users[i].base_loc.y);
 #endif
 	}
 	
 	cJSON * item = cJSON_GetObjectItem(root, "item_location");
 	int num_item = cJSON_GetArraySize(item);
-	Object->item_locations = (struct location *)malloc(sizeof(struct location) * num_item); 
+	Object.item_locations = (struct location *)malloc(sizeof(struct location) * num_item); 
 	for(int i = 0; i < num_item; i++){
 		cJSON* item_array = cJSON_GetArrayItem(item,i);
 		cJSON* item_x = cJSON_GetArrayItem(item_array, 0);
 		cJSON* item_y = cJSON_GetArrayItem(item_array, 1);
-		Object->item_locations[i].x = item_x->valueint;
-		Object->item_locations[i].y = item_y->valueint;
+		Object.item_locations[i].x = item_x->valueint;
+		Object.item_locations[i].y = item_y->valueint;
 #ifdef DEBUG
-		printf("item x: %d\n",Object->item_locations[i].x);
-		printf("item y: %d\n",Object->item_locations[i].y);
+		printf("item x: %d\n",Object.item_locations[i].x);
+		printf("item y: %d\n",Object.item_locations[i].y);
 #endif
 	}	
 
 	cJSON * block = cJSON_GetObjectItem(root, "block_location");
 	int num_block = cJSON_GetArraySize(block);
-	Object->block_locations = (struct location *)malloc(sizeof(struct location) * num_block); 
+	Object.block_locations = (struct location *)malloc(sizeof(struct location) * num_block); 
 	for(int i = 0; i < num_block; i++){
 		cJSON* block_array = cJSON_GetArrayItem(block,i);
 		cJSON* block_x = cJSON_GetArrayItem(block_array, 0);
 		cJSON* block_y = cJSON_GetArrayItem(block_array, 1);
-		Object->block_locations[i].x = block_x->valueint;
-		Object->block_locations[i].y = block_y->valueint;
+		Object.block_locations[i].x = block_x->valueint;
+		Object.block_locations[i].y = block_y->valueint;
 #ifdef DEBUG
-		printf("block x: %d\n",Object->block_locations[i].x);
-		printf("block y: %d\n",Object->block_locations[i].y);
+		printf("block x: %d\n",Object.block_locations[i].x);
+		printf("block y: %d\n",Object.block_locations[i].y);
 #endif
 	}	
 		
@@ -141,9 +140,5 @@ int parseJson() {
 int main(int argc, char *argv[]){
 	// struct json_object * fs_json = json_object_from_file("examplejson.json") ; 
     	parseJson();
-	free(Object->users);
-	free(Object->item_locations);
-	free(Object->block_locations);
-	free(Object); 
   return 0;
 }
