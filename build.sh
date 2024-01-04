@@ -1,5 +1,5 @@
 set -x
 
-gcc -Wall -g mapJson.c cJSON.c -o jsonfs -D_FILE_OFFSET_BITS=64
+gcc -Wall chat_serv.c cJSON.c -o mapJson -pthread
 
-chmod +x jsonfs
+chmod +x mapJson
