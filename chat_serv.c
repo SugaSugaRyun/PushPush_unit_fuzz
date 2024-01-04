@@ -14,6 +14,7 @@
 #define NAME_SIZE 16
 
 int start_flag = 0;
+int end_flag = 0;
 int max_user;
 char ** user_name;
 int json_size;
@@ -26,7 +27,10 @@ pthread_mutex_t mutx;
 
 int roadJson() 
 {
-	char filepath[256] = "file.json";
+	
+	char filepath[256];
+	fgets(filepath, 256, stdin);
+	filepath[strlen(filepath)-1]=0;
 	FILE *file = fopen(filepath,"r");
 	if(file == NULL){
 	fprintf(stderr,"ERROR: open file");
@@ -92,6 +96,8 @@ void disconnected(int sock)
 		}
 	}
 	clnt_cnt--;
+	if(clnt_cnt == 0)
+		end_flag = 0;
 	pthread_mutex_unlock(&mutx);
 	close(sock);
 }
@@ -110,7 +116,7 @@ int write_byte(int sock, void * buf, int size){
 		}
 		if( str_len == -1)
 		{
-
+			disconnected(sock);
 		}
 		write_size += str_len;
 	}
@@ -180,7 +186,8 @@ void *handle_clnt(void * arg)
 
 			
 	while(start_flag < max_user);
-
+	end_flag = 1;
+	
 	
 	for(int i=0; i< max_user; i++)
 	{
@@ -194,6 +201,11 @@ void *handle_clnt(void * arg)
 	{
 		printf("move: %d\n", event);
 		send_msg_all((void *)&event, sizeof(int));
+		if(event == 16)
+		{
+			printf("end game!\n");
+			disconnected(clnt_sock);
+		}
 	}
 	
 	
@@ -243,6 +255,10 @@ int main(int argc, char *argv[])
 	//todo user max될때 처리
 	while (1)
 	{
+		pthread_mutex_lock(&mutx); 
+		while(end_flag);
+		pthread_mutex_unlock(&mutx);
+		
 		clnt_adr_sz = sizeof(clnt_adr);
 		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 		
@@ -252,12 +268,7 @@ int main(int argc, char *argv[])
 		
 		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
 		pthread_detach(t_id);
-		
-		// printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
-		// if(clnt_cnt == Object->.num_user)
-		// {
-		// 	while(1);
-		// }
+
 		
 	}
 	free(json_serialize);
