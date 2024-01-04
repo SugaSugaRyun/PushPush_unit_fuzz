@@ -1,33 +1,45 @@
+{
+
+"timeout" : 30,
+"max_user" : 2,
+"map": {
+	"map_width" : 10,
+	"map_height" : 8
+},
+
+"user": 
 [
 {
-    "map_width": 10,
-    "map_height": 8,
-    "timeout": 30,
-    "num_user": 2,
-    "base": [
-        {"x": 0, "y": 0},
-        {"x": 9, "y": 9}
-    ],
-    "user_location": [
-        {"x": 1, "y": 0},
-        {"x": 8, "y": 9}
-    ],
-    "num_item": 6,
-    "item_location": [
-        {"x": 5, "y": 5},
-        {"x": 3, "y": 2},
-        {"x": 1, "y": 4},
-        {"x": 6, "y": 1},
-        {"x": 5, "y": 7},
-        {"x": 8, "y": 1}
-    ],
-    "num_block": 5,
-    "block_location": [
-        {"x": 4, "y": 4},
-        {"x": 3, "y": 5},
-        {"x": 4, "y": 5},
-        {"x": 5, "y": 5},
-        {"x": 4, "y": 6}
-    ]
+"username" : "",
+"score" : 0,
+"base": [9, 9],
+"location" : [9, 9]
+},
+{
+"username" : "",
+"score" : 0,
+"base" : [0,0],
+"location" : [0,0]
 }
+],
+
+"item_location" : 
+[
+[5, 5],
+[3, 2],
+[1, 4],
+[6, 1],
+[5, 7],
+[8, 1]
+],
+
+"block_location" : 
+[
+[4, 4],
+[3, 5],
+[4, 5],
+[5, 5],
+[4, 6]
 ]
+
+}
