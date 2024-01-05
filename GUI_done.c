@@ -108,7 +108,6 @@ int send_bytes(int sock_fd, void * buf, size_t len);
 void handle_timeout(int signum);
 int parseJson(char * jsonfile);
 void *recv_msg(void * arg);
-void recv_routine(GtkWidget *widget, gpointer data);
 
 
 // void test_set(){
@@ -175,6 +174,8 @@ void recv_routine(GtkWidget *widget, gpointer data);
 
 // }
 
+
+//THIS IS MAIN
 int main(int argc, char *argv[]) {
 
 	//get the username from stdin 
@@ -275,7 +276,7 @@ int main(int argc, char *argv[]) {
 	//key pressed
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
 	
-    g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
+    //g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
 	set_window();
 	pthread_join(rcv_thread, &thread_return);
 	free(map);
@@ -301,7 +302,6 @@ GdkPixbuf *create_pixbuf(const gchar * filename) {
 
 //load icons needed
 //0 on success, 1 on failure
-
 int load_icons(){
    	GdkPixbuf *pixbuf;
 	for(int i = 0; i < Model.max_user; i++){
@@ -332,10 +332,6 @@ int load_icons(){
 }
 
 
-//load game information from server and save map[]
-//TODO replace test to this one when done
-//void load_game_info(){
-//}
 
 //GUI: set the main window
 //TODO make prthread
@@ -396,8 +392,6 @@ GtkWidget* create_entity(int id){
 		//gtk_widget_set_size_request(sprite, 32, 32);		
 		gdk_color_parse(user_color[idx], &color);
 		gtk_widget_modify_bg(sprite, GTK_STATE_NORMAL, &color);
-		//TODO here ehre
-		g_signal_connect(G_OBJECT(sprite), "created??????", G_CALLBACK(recv_routine), NULL);
 	}else{
 		idx = id-1;
       	sprite = gtk_image_new_from_pixbuf(icon_player[idx]); 
@@ -431,7 +425,9 @@ void display_screen(){\
     }
 	gtk_fixed_put(GTK_FIXED(mat_screen), mat_fixed_screen, 0, 0);
 	gtk_fixed_put(GTK_FIXED(mat_screen), mat_changed_screen, 0, 0);
-  }else gtk_container_foreach(GTK_CONTAINER(mat_changed_screen), (GtkCallback)gtk_widget_destroy, NULL); 
+  }else {
+	gtk_container_foreach(GTK_CONTAINER(mat_changed_screen), (GtkCallback)gtk_widget_destroy, NULL); 
+  }
 
   for (int i = 0; i < Model.map_width; i++) {
     for (int j = 0; j < Model.map_height; j++) {
@@ -820,56 +816,13 @@ void * recv_msg(void * arg) {// read thread main
 		else{	//TODO place send() here, and move this code to recv();
 			move(recv_cmd, movement);
 			display_screen();
+			//raise(SIGUSR1);
 		} 
   		pthread_mutex_unlock(&mutx);
 
 	}
 	return NULL;
 }
-
-void recv_routine(GtkWidget *widget, gpointer data) { //instead of thread
-	/*
-	int debugg = 0;
-	fprintf(stderr, "recv: %d\n", debugg++);
-
-	int sock = *((int*)arg);
-	alarm(60);
-	int recv_cmd;
-
-	fprintf(stderr, "recv: %d\n", debugg++);
-
-	//now enter new move 
-	while(1){
-		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
-			return (void*)-1;
-
-        fprintf(stderr, "From Server : %d\n", recv_cmd);
-		
-		if(recv_cmd == 16){ // game over 
-			// TODO game over 
-			strcpy(msg_info, "Game over!");
-			gtk_label_set_text((GtkLabel*)label_info, msg_info);
-		}
-		//move
-		//TODO here here
-		pthread_mutex_lock(&mutx);
-
-    	int movement;
-		if((movement = check_validation(recv_cmd)) == 0) fprintf(stderr,"invalid movement!\n");
-		else{	//TODO place send() here, and move this code to recv();
-			move(recv_cmd, movement);
-			display_screen();
-		} 
-  		pthread_mutex_unlock(&mutx);
-
-	}*/
-
-	while(1){
-		fprintf(stderr, "helllo world!!!!!!\n");
-		sleep(1);
-	}
-}
-
 
 
 int recv_bytes(int sock_fd, void * buf, size_t len){

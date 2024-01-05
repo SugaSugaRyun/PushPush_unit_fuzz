@@ -271,11 +271,44 @@ int main(int argc, char *argv[]) {
 	// test_set();
 	srand((unsigned int)time(0));
 
-	//key pressed
+	// set_window();
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);//make window
+  g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);//for termination
+  g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
+ 
+  //set the window
+  gtk_window_set_title(GTK_WINDOW(window), "pushpush HK");
+  gtk_window_set_default_size(GTK_WINDOW(window), 1024, 512);
+  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+  gtk_container_set_border_width(GTK_CONTAINER(window), 5);
+
+  //change the icon of page(for cuteness)
+  icon = create_pixbuf("icons/catIcon.png");
+  gtk_window_set_icon(GTK_WINDOW(window), icon);
+  
+  //set main matrix
+  mat_main = gtk_table_new(8, 8-1, TRUE);
+	
+  strcpy(msg_info, "Welcome to PushPush HK!");
+  label_info = gtk_label_new(msg_info);
+  gtk_table_attach_defaults(GTK_TABLE(mat_main), label_info, 0, 11, 0, 1);
+  
+  display_screen();
+  add_mat_board();
+ 
+  label_me = gtk_label_new("23-winter capston study#2 leeejjju");
+  gtk_misc_set_alignment(GTK_MISC(label_me), 0.0, 1.0);
+  gtk_table_attach_defaults(GTK_TABLE(mat_main), label_me, 0, 8+1, 6, 8);
+
+  gtk_container_add(GTK_CONTAINER(window), mat_main);
+  gtk_widget_show_all(window); //is it dup with above
+  g_object_unref(icon);
+
+
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
 	
-    g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
-	set_window();
+  gtk_main(); //enter the GTK main loop
+
 	pthread_join(rcv_thread, &thread_return);
 	free(map);
 	close(sock);  
@@ -371,7 +404,6 @@ void set_window(){
   gtk_container_add(GTK_CONTAINER(window), mat_main);
   gtk_widget_show_all(window); //is it dup with above
   g_object_unref(icon);
-  gtk_main(); //enter the GTK main loop
 
 }
 
@@ -784,7 +816,7 @@ void handle_timeout(int signum) {
     //gameover 신호 보내기 
 
     printf("10 seconds have passed. Do something!\n");
-
+}
 void * recv_msg(void * arg)   // read thread main
 {
 	int debugg = 0;
@@ -811,6 +843,7 @@ void * recv_msg(void * arg)   // read thread main
 		//move
 		//TODO here here
 		pthread_mutex_lock(&mutx);
+        gdk_threads_enter();
 
     	int movement;
 		if((movement = check_validation(recv_cmd)) == 0) fprintf(stderr,"invalid movement!\n");
@@ -818,6 +851,7 @@ void * recv_msg(void * arg)   // read thread main
 			move(recv_cmd, movement);
 			display_screen();
 		} 
+        gdk_threads_leave();
   		pthread_mutex_unlock(&mutx);
 
 	}
@@ -845,8 +879,7 @@ int send_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *) buf;
     size_t acc = 0;
 
-    while(acc < len)
-    {
+    while(acc < len){
         size_t sent;
         sent = send(sock_fd, p, len - acc, 0);
         if(sent == -1 || sent == 0){
