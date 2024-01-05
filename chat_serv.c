@@ -66,6 +66,7 @@ int roadJson()
 
 	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
 	max_user = num_user->valueint;
+	// max_user = 1;
 	user_name = (char**)malloc(sizeof(char*) * max_user);
 	for(int i=0; i< max_user; i++)
 	{

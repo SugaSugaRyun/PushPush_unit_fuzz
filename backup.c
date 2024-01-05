@@ -108,7 +108,6 @@ int send_bytes(int sock_fd, void * buf, size_t len);
 void handle_timeout(int signum);
 int parseJson(char * jsonfile);
 void *recv_msg(void * arg);
-void recv_routine(GtkWidget *widget, gpointer data);
 
 
 // void test_set(){
@@ -396,8 +395,6 @@ GtkWidget* create_entity(int id){
 		//gtk_widget_set_size_request(sprite, 32, 32);		
 		gdk_color_parse(user_color[idx], &color);
 		gtk_widget_modify_bg(sprite, GTK_STATE_NORMAL, &color);
-		//TODO here ehre
-		g_signal_connect(G_OBJECT(sprite), "created??????", G_CALLBACK(recv_routine), NULL);
 	}else{
 		idx = id-1;
       	sprite = gtk_image_new_from_pixbuf(icon_player[idx]); 
@@ -787,9 +784,9 @@ void handle_timeout(int signum) {
     //gameover 신호 보내기 
 
     printf("10 seconds have passed. Do something!\n");
-}
 
-void * recv_msg(void * arg) {// read thread main
+void * recv_msg(void * arg)   // read thread main
+{
 	int debugg = 0;
 	fprintf(stderr, "recv: %d\n", debugg++);
 
@@ -826,51 +823,6 @@ void * recv_msg(void * arg) {// read thread main
 	}
 	return NULL;
 }
-
-void recv_routine(GtkWidget *widget, gpointer data) { //instead of thread
-	/*
-	int debugg = 0;
-	fprintf(stderr, "recv: %d\n", debugg++);
-
-	int sock = *((int*)arg);
-	alarm(60);
-	int recv_cmd;
-
-	fprintf(stderr, "recv: %d\n", debugg++);
-
-	//now enter new move 
-	while(1){
-		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
-			return (void*)-1;
-
-        fprintf(stderr, "From Server : %d\n", recv_cmd);
-		
-		if(recv_cmd == 16){ // game over 
-			// TODO game over 
-			strcpy(msg_info, "Game over!");
-			gtk_label_set_text((GtkLabel*)label_info, msg_info);
-		}
-		//move
-		//TODO here here
-		pthread_mutex_lock(&mutx);
-
-    	int movement;
-		if((movement = check_validation(recv_cmd)) == 0) fprintf(stderr,"invalid movement!\n");
-		else{	//TODO place send() here, and move this code to recv();
-			move(recv_cmd, movement);
-			display_screen();
-		} 
-  		pthread_mutex_unlock(&mutx);
-
-	}*/
-
-	while(1){
-		fprintf(stderr, "helllo world!!!!!!\n");
-		sleep(1);
-	}
-}
-
-
 
 int recv_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *)buf;
