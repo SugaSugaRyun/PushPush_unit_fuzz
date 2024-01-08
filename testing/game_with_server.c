@@ -114,7 +114,7 @@ void *recv_msg(void * arg);
 void cannot_enter();
 
 
-
+//this is MAIN
 int main(int argc, char *argv[]) {
 
 	//get the username from stdin 
@@ -125,7 +125,6 @@ int main(int argc, char *argv[]) {
 	signal(SIGALRM, handle_timeout);
 	gtk_init(&argc, &argv); //init GTK by args
 
-    
 	struct sockaddr_in serv_addr;
 	pthread_t snd_thread, rcv_thread;
 	void * thread_return;
@@ -213,52 +212,17 @@ int main(int argc, char *argv[]) {
 	icon_player = (GdkPixbuf **) malloc(Model.max_user * sizeof(GdkPixbuf *));
 
 	update_cell();
-//-------------------------------
+
 	//load icons from icons dir
 	if(load_icons()) {
 		fprintf(stderr,"failed to load icons\n");
 		return 1;
   	}
-	//set the testing data 
-	// TODO fill structure
-	// test_set();
+
 	srand((unsigned int)time(0));
-
 	set_window();
-    // window = gtk_window_new(GTK_WINDOW_TOPLEVEL);//make window
-	// g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);//for termination
-	// g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
- 
- 	// //set the window
-	// gtk_window_set_title(GTK_WINDOW(window), "pushpush HK");
-	// gtk_window_set_default_size(GTK_WINDOW(window), 1024, 512);
-  	// gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-  	// gtk_container_set_border_width(GTK_CONTAINER(window), 5);
-
-  	// //change the icon of page(for cuteness)
-  	// icon = create_pixbuf("../icons/catIcon.png");
-  	// gtk_window_set_icon(GTK_WINDOW(window), icon);
-  
-  	// //set main matrix
-  	// mat_main = gtk_table_new(8, 8-1, TRUE);
-	
-  	// strcpy(msg_info, "Welcome to PushPush HK!");
-  	// label_info = gtk_label_new(msg_info);
-  	// gtk_table_attach_defaults(GTK_TABLE(mat_main), label_info, 0, 11, 0, 1);
-  
-  	// display_screen();
-  	// add_mat_board();
- 
-  	// label_me = gtk_label_new("23-winter capston study#2 leeejjju");
-  	// gtk_misc_set_alignment(GTK_MISC(label_me), 0.0, 1.0);
-  	// gtk_table_attach_defaults(GTK_TABLE(mat_main), label_me, 0, 8+1, 6, 8);
-
-  	// gtk_container_add(GTK_CONTAINER(window), mat_main);
-  	// gtk_widget_show_all(window); //is it dup with above
-  	// g_object_unref(icon);
 
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
-
 	g_timeout_add(50,idle_function, NULL);
 	
   	gtk_main(); //enter the GTK main loop
@@ -267,7 +231,6 @@ int main(int argc, char *argv[]) {
 	free(map);
 	close(sock);  
 	pthread_mutex_destroy(&mutx);
-	// g_source_remove(idle_id);
 
  	return 0;
 }
@@ -569,7 +532,7 @@ int move(int cmd, int movement){
 		fprintf(stderr,"move for success %d!!!\n", movement);	
 		update_model((0-movement), -1, -1);	
 		score_up(user_idx);
-			if( --end_flag <= 0) gameover();
+		if( --end_flag <= 0) gameover();
 	}
 	update_model(user_idx+1, target_x,target_y);	
 	fprintf(stderr,"move finish!\n");
@@ -598,13 +561,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
             break;
     }
 	fprintf(stderr,"keyboard :%d player id : %d, cmd : %d\n", event->keyval, my_id ,cmd);
-	// int movement;
-	// 	if((movement = check_validation(cmd)) == 0) fprintf(stderr,"invalid movement!\n");
-	// 	else{	//TODO place send() here, and move this code to recv();
-	// 		move(cmd, movement);
-	// 		display_screen();
-	// 	} 
-	send_bytes(sock, (void*)&cmd, sizeof(int));   
+	send_bytes(sock, (void*)&cmd, sizeof(int));
 
 	return TRUE;
 }
@@ -612,13 +569,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 void update_model(int id, int x, int y){
 
 	printf("update model\n");
-	//for debug
-	// for (int i = 0; i < Model.map_width; i++) {
-    //   for (int j = 0; j < Model.map_height; j++) {
-	// 	fprintf(stderr,"%3d ",map[i][j]);
-	//   }
-	//   fprintf(stderr,"\n");
-    // }
+
 	int idx;
 	if(id < ITEM){ //item
 		idx = item_idToIdx(id);
@@ -663,20 +614,14 @@ void update_cell(){
 	for (int i = 0; i < num_block; i++) {
 		map[Model.block_locations[i].y][Model.block_locations[i].x] = BLOCK;
     }
-	// fprintf(stderr,"block update cell finish!\n");
+
 	//item
 	for (int i = 0; i < num_item; i++) {
 		int item_id = item_idxToId(i);
-		if(Model.item_locations[i].x == -1 && Model.item_locations[i].y == -1) 
-		{
-			// fprintf(stderr,"out item %d\n",item_id);
-			continue; //skip removed item
-		}
+		if(Model.item_locations[i].x == -1 && Model.item_locations[i].y == -1) continue; //skip removed item
 		map[Model.item_locations[i].y][Model.item_locations[i].x] = item_id;
     }
 
-	// fprintf(stderr,"Update cell out\n");
-	
 }
 int item_idxToId(int idx){ return ((0-(idx+1))*10); } //0 -> -10
 int item_idToIdx(int id){ return (((0-id)/10)-1); }//-10 -> 0
@@ -695,21 +640,20 @@ void score_up(int user_idx){
 
 void gameover(){
 	
-	sprintf(msg_info, "GAME OVER");
+	sprintf(msg_info, "GAME OVER: exit after 3 second...");
 	fprintf(stderr,"GAME OVER\n");
 	gtk_label_set_text((GtkLabel*)label_info, msg_info);
 
-	//TODO exit or display another window or omething
+	//TODO exit or display another window or something
 
 }
 
 int parseJson(char * jsonfile) {
 
     cJSON* root;
-
 	root = cJSON_Parse(jsonfile);
 	if (root == NULL) {
-		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
+		printf("JSON parsing error: %s\n", cJSON_GetErrorPtr());
         	return 1;
     	}
         
@@ -812,13 +756,8 @@ void * recv_msg(void * arg)   // read thread main
 		pthread_cond_signal(&cond);
   		pthread_mutex_unlock(&mutx);
 		
-		if(recv_cmd == 16){ // game over 
-			// TODO game over 
-			strcpy(msg_info, "Game over!");
-			gtk_label_set_text((GtkLabel*)label_info, msg_info);
-		}
+
 		//move
-		//TODO here here
         
 	
     	// int movement;
@@ -868,7 +807,6 @@ int send_bytes(int sock_fd, void * buf, size_t len){
 }
 
 gboolean idle_function(gpointer user_data) {
-    // 여기서 원하는 주기적인 작업을 수행
 	int event;
     pthread_mutex_lock(&mutx);
 	if(rear == front)
@@ -877,21 +815,26 @@ gboolean idle_function(gpointer user_data) {
 		return TRUE;
 	}
 
-
 	front = (front + 1) % queue_size;
 	event = event_arry[front];
+	
 	pthread_cond_signal(&cond);
   	pthread_mutex_unlock(&mutx);
 	
 	fprintf(stderr,"do check\n");
+	if(event == 16) 
+	{
+		gameover();
+		return FALSE;
+	}
+
 	int movement;
 	if((movement = check_validation(event)) == 0) fprintf(stderr,"invalid movement!\n");
-	else{	//TODO place send() here, and move this code to recv();
+	else{	
 		move(event, movement);
 		display_screen();
 	} 
 
-    // TRUE를 반환하면 계속 호출됩니다.
     return TRUE;
 }
 
