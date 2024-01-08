@@ -10,9 +10,9 @@ server:
 client:
 	gcc -o client GUI_done.c cJSON.c `pkg-config --libs --cflags gtk+-2.0` -DDEBUG
 
-rs:
+s:
 	echo $(JSON) | ./server $(PORT)
-rc:
+c:
 	./client $(IP) $(PORT) 
 
 clean:
