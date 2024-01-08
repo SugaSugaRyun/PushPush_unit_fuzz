@@ -10,20 +10,15 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include "../cJSON.h"
-
 #define NAME_SIZE 16
 #define queue_size 20
-//#define CELL_SIZE 8
-//#define MAP_WIDTH 32
-//#define MAP_HEIGHT 16
-//#define SCORE_BOARD_WIDTH 64
-//#define INFO_LABEL_HEIGHT 16
 #define BUF_SIZE 128
 #define GDK_KEY_UP 65362
 #define GDK_KEY_DOWN 65364
 #define GDK_KEY_LEFT 65361
 #define GDK_KEY_RIGHT 65363
 
+//object data structures
 typedef struct location{
     int x;
     int y;
@@ -45,24 +40,6 @@ typedef struct object_data{
     location_t * item_locations;
     location_t * block_locations;
 }object_data_t;
-object_data_t Model;
-
-pthread_mutex_t mutx;
-pthread_cond_t cond;
-
-
-// int map[MAP_WIDTH][MAP_HEIGHT]; 
-int ** map; // map malloc 해주기 
-char msg_info[BUF_SIZE] = "";
-char buf[BUF_SIZE] = "";
-// char my_username[BUF_SIZE] = "me"; //replaced with Model.users[my_id].name
-int sock;
-int my_id;
-int num_item;
-int num_block;
-int end_flag;
-// char all_usernames[NUM_PLAYER][BUF_SIZE]; //replaced with Model.users[].name
-// char score[NUM_PLAYER]; //replaced with Model.users[].score
 
 enum entity {
 	EMPTY = 0,
@@ -71,19 +48,33 @@ enum entity {
 	USER = 1, //user wil be 1 ~ 3
 	BASE = 9, //base will be 10 ~ 30
 };
-char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#a19b8b", "#ea9574", "#ffca79", "#c79465", "#e3dbcf"};
-enum spans {UP, DOWN, LEFT, RIGHT};
 
+enum spans {
+	UP, 
+	DOWN, 
+	LEFT, 
+	RIGHT
+};
+
+char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#a19b8b", "#ea9574", "#ffca79", "#c79465", "#e3dbcf"};
+
+int ** map; // cell
+object_data_t Model; //model
+char msg_info[BUF_SIZE] = "";
+char buf[BUF_SIZE] = "";
+int sock;
+int my_id;
+int num_item, num_block;
+int end_flag;
+
+pthread_mutex_t mutx;
+pthread_cond_t cond;
 int event_arry[queue_size];
 int rear = 0;
 int front = 0;
 
 
-gboolean idle_function(gpointer user_data) ;
-
-
-
-//for GUI
+//GUI functions
 GtkWidget *window;
 GtkWidget *mat_main, *mat_changed_screen, *mat_board, *label_info, *label_me, *mat_fixed_screen, *mat_screen;
 GtkWidget *mat_ans_btn, *mat_sol_btn;
@@ -112,6 +103,7 @@ void update_cell();
 int item_idxToId(int idx);
 int item_idToIdx(int id);
 void score_up(int user_idx);
+gboolean idle_function(gpointer user_data) ;
 
 //for networking
 int recv_bytes(int sock_fd, void * buf, size_t len);
@@ -119,6 +111,8 @@ int send_bytes(int sock_fd, void * buf, size_t len);
 void handle_timeout(int signum);
 int parseJson(char * jsonfile);
 void *recv_msg(void * arg);
+void cannot_enter();
+
 
 
 int main(int argc, char *argv[]) {
@@ -151,6 +145,16 @@ int main(int argc, char *argv[]) {
 	{
 		fprintf(stderr, "ERROR: connect() error\n");
 		exit(1);
+	}
+
+	int enter_flag;
+	if (recv_bytes(sock, (void*)&enter_flag, sizeof(int)) == -1) 
+    	return 1;
+
+	if(enter_flag){
+		cannot_enter();
+		close(sock);
+		return 0;
 	}
 	
 	while(1){
@@ -878,6 +882,7 @@ gboolean idle_function(gpointer user_data) {
 	event = event_arry[front];
 	pthread_cond_signal(&cond);
   	pthread_mutex_unlock(&mutx);
+	
 	fprintf(stderr,"do check\n");
 	int movement;
 	if((movement = check_validation(event)) == 0) fprintf(stderr,"invalid movement!\n");
@@ -888,4 +893,9 @@ gboolean idle_function(gpointer user_data) {
 
     // TRUE를 반환하면 계속 호출됩니다.
     return TRUE;
+}
+
+void cannot_enter(){
+	// sprintf(msg_info, "Cannot enter the game.\n");
+	fprintf(stderr,"Cannot enter the game.\n");
 }

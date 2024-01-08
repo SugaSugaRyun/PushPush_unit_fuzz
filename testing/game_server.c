@@ -13,8 +13,9 @@
 #define MAX_USER 4
 #define NAME_SIZE 16
 
-int start_flag = 0;
+int start_flag = 0; //num of connected user
 int end_flag = 0;
+// am fi() 1 emaceb ,detrats si emag fi//
 int max_user;
 char ** user_name;
 int json_size;
@@ -24,7 +25,17 @@ int clnt_cnt = 0;
 int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
+//TODO 이거 대가리 따서 앞에 전시해두고 구현부 싹 뒤로 뺄까요 말까요? 
+int roadJson();
+void disconnected(int sock);
+int write_byte(int sock, void * buf, int size);
+int read_byte(int sock, void * buf, int size);
+void send_msg_all(void * event, int len);
+void *handle_clnt(void * arg);
+void error_handling(char * msg);
 
+
+//roadJson: read datas from json file
 int roadJson() 
 {
 	
@@ -32,25 +43,29 @@ int roadJson()
 	fgets(filepath, 256, stdin);
 	filepath[strlen(filepath)-1]=0;
 	FILE *file = fopen(filepath,"r");
-	if(file == NULL){
-	fprintf(stderr,"ERROR: open file");
+	if(file == NULL)
+	{
+		fprintf(stderr,"ERROR: open file");
 		return 1;
 	}
 	struct stat st;
-	if(stat(filepath, &st) == -1){
+	if(stat(filepath, &st) == -1)
+	{
   		fprintf(stderr,"ERROR: stat()\n");
-  	return 1;
+  		return 1;
 	}
 	int size = st.st_size;
 
 	char* jsonfile = (char*)malloc(size+1);
-	if(jsonfile == NULL){
+	if(jsonfile 	== NULL)
+	{
 		fprintf(stderr,"ERROR: memory allocation\n");
 		return 1;
 	}
 
 	int read_size = fread(jsonfile, 1, size, file);
-	if(read_size != size){
+	if(read_size != size)
+	{
 		fprintf(stderr, "ERROR: read file\n");
 		return 1;
 	}
@@ -59,9 +74,10 @@ int roadJson()
 	jsonfile[size] = '\0';
 	
 	cJSON* root = cJSON_Parse(jsonfile);
-	if (root == NULL) {
-			printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
-      return 1;
+	if (root == NULL) 
+	{
+		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
+      	return 1;
 	}
 
 	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
@@ -81,6 +97,7 @@ int roadJson()
 	return 0;
 }
 
+//disconnected: check if any user is disconnected, handel clnt_cnt
 void disconnected(int sock)
 {
 	pthread_mutex_lock(&mutx);
@@ -97,14 +114,19 @@ void disconnected(int sock)
 		}
 	}
 	clnt_cnt--;
-	// if(clnt_cnt == 0)
-		// end_flag = 0;
+
+	if(clnt_cnt == 0)
+	{
+		end_flag = 0;
+		start_flag = 0;
+	}
 	pthread_mutex_unlock(&mutx);
 	close(sock);
 }
 
-
-int write_byte(int sock, void * buf, int size){
+//write_byte: write datas to socket, guarantee that all the byte is sent. 
+int write_byte(int sock, void * buf, int size)
+{
 
 	int write_size = 0;
 	int str_len = 0;
@@ -124,6 +146,7 @@ int write_byte(int sock, void * buf, int size){
 	return write_size;
 }
 
+//read_byte: read datas from socket, guarantee that all byte is accepted.
 int read_byte(int sock, void * buf, int size)
 {
 	int read_size = 0;
@@ -145,9 +168,9 @@ int read_byte(int sock, void * buf, int size)
 	return read_size;
 }//상훈님 파이팅 
 
-void send_msg_all(void * event, int len)   // send to all
+//send_msg_all: send msg to all connected users
+void send_msg_all(void * event, int len)
 {
-	// printf("%d\n",*(int *)event);
 	pthread_mutex_lock(&mutx);
 	for (int i = 0; i < clnt_cnt; i++)
 	{
@@ -156,6 +179,7 @@ void send_msg_all(void * event, int len)   // send to all
 	pthread_mutex_unlock(&mutx);
 }
 
+//handle_clnt: thread function; handle one client per one thread. send json datas and recv commands, broadcast it to all... 
 void *handle_clnt(void * arg)
 {
 	int clnt_sock = *((int*)arg);
@@ -175,7 +199,7 @@ void *handle_clnt(void * arg)
 			read_byte(clnt_sock, (void *)user_name[i], name_size);
 			printf("%s is enter\n",user_name[i]);
 			write_byte(clnt_sock, (void *)&i, sizeof(int));
-			start_flag++;
+			start_flag++; //TODO wanna change this name...
 			break;
 		}
 	}
@@ -185,11 +209,9 @@ void *handle_clnt(void * arg)
 	write_byte(clnt_sock, (void *)&json_size, sizeof(int));
 	write_byte(clnt_sock, json_serialize, json_size);
 
-			
-	while(start_flag < max_user);
-	// end_flag = 1;
+	while(start_flag < max_user); //wait untill all user is connected
 	
-	
+	//send connected user information
 	for(int i=0; i< max_user; i++)
 	{
 		int len = strlen(user_name[i]);
@@ -197,11 +219,12 @@ void *handle_clnt(void * arg)
 		write_byte(clnt_sock,user_name[i], len);
 	}
 
-	//event echo
+	//receive and echo command
 	while (read_byte(clnt_sock, (void *)&event, sizeof(int))) 
 	{
 		printf("move: %d\n", event);
 		send_msg_all((void *)&event, sizeof(int));
+		//detect end flag
 		if(event == 16)
 		{
 			printf("end game!\n");
@@ -209,12 +232,10 @@ void *handle_clnt(void * arg)
 		}
 	}
 	
-	
 	return NULL;
 }
 
-
-
+//error_handling: print error message
 void error_handling(char * msg)
 {
 	fputs(msg, stderr);
@@ -222,6 +243,7 @@ void error_handling(char * msg)
 	exit(1);
 }
 
+//this is MAIN function
 int main(int argc, char *argv[])
 {
 	int serv_sock, clnt_sock;
@@ -250,26 +272,35 @@ int main(int argc, char *argv[])
 	
 	if (bind(serv_sock, (struct sockaddr*) &serv_adr, sizeof(serv_adr)) == -1)
 		error_handling("bind() error");
+	
 	if (listen(serv_sock, 5) == -1)
 		error_handling("listen() error");
 	
 	//todo user max될때 처리
+	char ttrash[NAME_SIZE];
 	while (1)
 	{
-		pthread_mutex_lock(&mutx); 
-		// while(end_flag);
-		pthread_mutex_unlock(&mutx);
-		
 		clnt_adr_sz = sizeof(clnt_adr);
 		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 		
+		write_byte(clnt_sock, (void *)&end_flag, sizeof(int));
+		if(end_flag == 1)
+		{
+			close(clnt_sock);
+			continue;
+		}
+
 		pthread_mutex_lock(&mutx); 
 		clnt_socks[clnt_cnt++] = clnt_sock;
 		pthread_mutex_unlock(&mutx);
 		
 		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
 		pthread_detach(t_id);
+		
 
+
+		if(clnt_cnt == max_user)
+			end_flag = 1;
 		
 	}
 	free(json_serialize);
