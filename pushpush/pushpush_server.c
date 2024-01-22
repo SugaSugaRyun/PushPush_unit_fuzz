@@ -34,8 +34,8 @@ void *handle_clnt(void * arg);
 void error_handling(char * msg);
 
 
-//roadJson: read datas from json file
-int roadJson() 
+//loadJson: read datas from json file
+int loadJson() 
 {
 	char filepath[PATH_LENGTH];
 	fgets(filepath, PATH_LENGTH-1, stdin);
