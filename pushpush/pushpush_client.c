@@ -200,9 +200,10 @@ int main(int argc, char *argv[]) {
 	
 		if (recv_bytes(sock, (void*)(Model.users[i].name), name_size) == -1)
 			return 1;
-
+		Model.users[i].name[name_size] = 0x0;
 		printf("id : %d name : %s\n",i,Model.users[i].name);
 	}
+
 
 	map = (int **) malloc (sizeof(int *) * Model.map_width);
 	for(int i=0;i<Model.map_width;i++){
@@ -254,7 +255,6 @@ GdkPixbuf *create_pixbuf(const gchar * filename) {
 
 //load icons needed
 //0 on success, 1 on failure
-
 int load_icons(){
    	GdkPixbuf *pixbuf;
 	for(int i = 0; i < Model.max_user; i++){
