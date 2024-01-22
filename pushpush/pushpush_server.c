@@ -16,7 +16,6 @@
 
 int usr_cnt = 0; //num of connected user
 int game_start = 0;
-// am fi() 1 emaceb ,detrats si emag fi//
 int max_user;
 char ** user_name;
 int json_size;
@@ -26,7 +25,6 @@ int clnt_cnt = 0;
 int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
-//TODO 이거 대가리 따서 앞에 전시해두고 구현부 싹 뒤로 뺄까요 말까요? 
 int roadJson();
 void disconnected(int sock);
 int write_byte(int sock, void * buf, int size);
