@@ -1,0 +1,101 @@
+{
+
+    "timeout" : 30,
+    
+    "max_user" : 4,
+    
+    "map": {
+    
+    "map_width" : 10,
+    
+    "map_height" : 10
+    
+    },
+    
+    "user": [
+    
+    {
+    
+    "username" : "",
+    
+    "score" : 0,
+    
+    "base" : [0, 1],
+    
+    "location": [0, 1]
+    
+    },
+    
+    {
+    
+    "username" : "",
+    
+    "score" : 0,
+    
+    "base" : [1, 9],
+    
+    "location": [1, 9]
+    
+    },
+    
+    {
+    
+    "username" : "",
+    
+    "score" : 0,
+    
+    "base": [6,8],
+    
+    "location": [6,8]
+    
+    },
+    
+    {
+    
+    "username" : "",
+    
+    "score" : 0,
+    
+    "base": [8, 2],
+    
+    "location": [8, 2]
+    
+    }
+    
+    ],
+    
+    "item_location" : [
+    
+    [1, 4],
+    
+    [3, 2],
+    
+    [3, 8],
+    
+    [4, 6],
+    
+    [5, 3],
+    
+    [6, 1],
+    
+    [7, 7],
+    
+    [8, 6]
+    
+    ],
+    
+    "block_location" : [
+    
+    [1, 6],
+    
+    [2, 2],
+    
+    [3, 5],
+    
+    [5, 6],
+    
+    [8, 4]
+    
+    ]
+    
+    }
