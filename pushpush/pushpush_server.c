@@ -25,7 +25,7 @@ int clnt_cnt = 0;
 int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
-int roadJson();
+int loadJson();
 void disconnected(int sock);
 int write_byte(int sock, void * buf, int size);
 int read_byte(int sock, void * buf, int size);
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if(roadJson()) //parsing error return 1.
+	if(loadJson()) //parsing error return 1.
 		exit(1);
 
 	pthread_mutex_init(&mutx, NULL);
