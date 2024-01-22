@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include "../cJSON.h"
+
 #define NAME_SIZE 16
 #define queue_size 20
 #define BUF_SIZE 128
@@ -65,7 +66,7 @@ char buf[BUF_SIZE] = "";
 int sock;
 int my_id;
 int num_item, num_block;
-int end_flag;
+int current_num_item;
 
 pthread_mutex_t mutx;
 pthread_cond_t cond;
@@ -103,7 +104,7 @@ void update_cell();
 int item_idxToId(int idx);
 int item_idToIdx(int id);
 void score_up(int user_idx);
-gboolean idle_function(gpointer user_data) ;
+gboolean handle_cmd(gpointer user_data) ;
 
 //for networking
 int recv_bytes(int sock_fd, void * buf, size_t len);
@@ -146,11 +147,11 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	int enter_flag;
-	if (recv_bytes(sock, (void*)&enter_flag, sizeof(int)) == -1) 
+	int game_started;
+	if (recv_bytes(sock, (void*)&game_started, sizeof(int)) == -1) 
     	return 1;
 
-	if(enter_flag){
+	if(game_started){
 		cannot_enter();
 		close(sock);
 		return 0;
@@ -158,7 +159,8 @@ int main(int argc, char *argv[]) {
 	
 	while(1){
 		printf("enter your name: ");
-		if((scanf("%s", buf) != 1) || 0 /*TODO need another checking?*/){
+		scanf("%s", buf);
+		if(strlen(buf) > NAME_SIZE){
 			printf("invalid name. please pick another one.");	
 			continue;
 		}else break;
@@ -177,7 +179,6 @@ int main(int argc, char *argv[]) {
 		
 	fprintf(stderr, "id : %d\n", my_id);
 	
-
     // recv json file
     int json_size;
     if (recv_bytes(sock, (void*)&(json_size), sizeof(int)) == -1)
@@ -187,7 +188,8 @@ int main(int argc, char *argv[]) {
     if (recv_bytes(sock, json_format, json_size) == -1)
 		return 1;
 
-	parseJson(json_format);
+	if(parseJson(json_format))
+		return 1;
 	
 	// receive all player's name size, name 
 	// test hardcoding
@@ -195,7 +197,6 @@ int main(int argc, char *argv[]) {
 		int name_size;
 		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
 			return 1;
-
 	
 		if (recv_bytes(sock, (void*)(Model.users[i].name), name_size) == -1)
 			return 1;
@@ -222,8 +223,10 @@ int main(int argc, char *argv[]) {
 	srand((unsigned int)time(0));
 	set_window();
 
+	alarm(Model.timeout);
+
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
-	g_timeout_add(50,idle_function, NULL);
+	g_timeout_add(50,handle_cmd, NULL);
 	
   	gtk_main(); //enter the GTK main loop
 
@@ -281,14 +284,7 @@ int load_icons(){
 
 }
 
-
-//load game information from server and save map[]
-//TODO replace test to this one when done
-//void load_game_info(){
-//}
-
 //GUI: set the main window
-//TODO make prthread
 void set_window(){
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);//make window
@@ -323,7 +319,6 @@ void set_window(){
   gtk_widget_show_all(window); //is it dup with above
   g_object_unref(icon);
 
-//   gtk_main();
 
 }
 
@@ -356,29 +351,29 @@ GtkWidget* create_entity(int id){
 }
 
 //GUI: display screen from map[] model
-//TODO need to be updated to display by map[]
-void display_screen(){\
+void display_screen(){
 	
   //set screen matrix
   if(mat_changed_screen == NULL){ //initially once
 	mat_screen = gtk_fixed_new();
 	mat_changed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
 	mat_fixed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
-    for (int i = 0; i < Model.map_width; i++) {
-      for (int j = 0; j < Model.map_height; j++) {
-		if(map[j][i] == BLOCK || map[j][i] > BASE){
-			GtkWidget* sprite = create_entity(map[j][i]);
-			if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_fixed_screen), sprite, i, i+1, j, j+1);
-		}	
-	  }
-    }
+  for (int i = 0; i < Model.map_width; i++) {
+    for (int j = 0; j < Model.map_height; j++) {
+			if(map[j][i] == BLOCK || map[j][i] > BASE){
+				GtkWidget* sprite = create_entity(map[j][i]);
+				if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_fixed_screen), sprite, i, i+1, j, j+1);
+			}	
+		}
+  }
 	gtk_fixed_put(GTK_FIXED(mat_screen), mat_fixed_screen, 0, 0);
 	gtk_fixed_put(GTK_FIXED(mat_screen), mat_changed_screen, 0, 0);
   }else gtk_container_foreach(GTK_CONTAINER(mat_changed_screen), (GtkCallback)gtk_widget_destroy, NULL); 
 
   for (int i = 0; i < Model.map_width; i++) {
     for (int j = 0; j < Model.map_height; j++) {
-		if(map[j][i] == BLOCK || map[j][i] > BASE) continue;
+		if(map[j][i] == BLOCK || map[j][i] > BASE) 
+			continue;
 		GtkWidget* sprite = create_entity(map[j][i]);
 		if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_changed_screen), sprite, i, i+1, j, j+1);
     }
@@ -390,7 +385,6 @@ void display_screen(){\
 }
 
 //GUI: set the score board
-//TODO need to be updated from score received from server
 void add_mat_board(){
 
   //set board vbox
@@ -532,7 +526,7 @@ int move(int cmd, int movement){
 		fprintf(stderr,"move for success %d!!!\n", movement);	
 		update_model((0-movement), -1, -1);	
 		score_up(user_idx);
-		if( --end_flag <= 0) gameover();
+		current_num_item--;
 	}
 	update_model(user_idx+1, target_x,target_y);	
 	fprintf(stderr,"move finish!\n");
@@ -640,12 +634,11 @@ void score_up(int user_idx){
 
 void gameover(){
 	
-	sprintf(msg_info, "GAME OVER: exit after 3 second...");
+	sprintf(msg_info, "GAME OVER!!!");
 	fprintf(stderr,"GAME OVER\n");
 	gtk_label_set_text((GtkLabel*)label_info, msg_info);
 
-	//TODO exit or display another window or something
-
+	gtk_widget_show_all(window);
 }
 
 int parseJson(char * jsonfile) {
@@ -669,7 +662,6 @@ int parseJson(char * jsonfile) {
 	Model.map_height = map_height->valueint;
 
 	cJSON* user = cJSON_GetObjectItem(root, "user");
-	Model.max_user = cJSON_GetArraySize(user);
 	Model.users = (struct user *)malloc(sizeof(struct user) * Model.max_user);
 	for(int i = 0; i < Model.max_user; i++){
 		memset(Model.users[i].name, 0, sizeof(NAME_SIZE));
@@ -694,7 +686,7 @@ int parseJson(char * jsonfile) {
 	
 	cJSON * item = cJSON_GetObjectItem(root, "item_location");
 	num_item = cJSON_GetArraySize(item);
-	end_flag = num_item;
+	current_num_item = num_item;
 	Model.item_locations = (struct location *)malloc(sizeof(struct location) * num_item); 
 	for(int i = 0; i < num_item; i++){
 		cJSON* item_array = cJSON_GetArrayItem(item,i);
@@ -728,17 +720,15 @@ int parseJson(char * jsonfile) {
 
 void handle_timeout(int signum) {
     // 이 함수가 호출되면 10초가 경과했음을 의미
-	int game_over = 16;
+	int game_over = Model.max_user*4;
 
 	send_bytes(sock,(void *)&game_over,sizeof(game_over));
     //gameover 신호 보내기 
-
-    printf("10 seconds have passed. Do something!\n");
+	gameover();
 }
 void * recv_msg(void * arg)   // read thread main
 {
 	int sock = *((int*)arg);
-	alarm(60);
 	int recv_cmd;
 
 	//now enter new move 
@@ -755,19 +745,6 @@ void * recv_msg(void * arg)   // read thread main
 		event_arry[rear] = recv_cmd;
 		pthread_cond_signal(&cond);
   		pthread_mutex_unlock(&mutx);
-		
-
-		//move
-        
-	
-    	// int movement;
-		// if((movement = check_validation(recv_cmd)) == 0) fprintf(stderr,"invalid movement!\n");
-		// else{	//TODO place send() here, and move this code to recv();
-		// 	move(recv_cmd, movement);
-		// 	display_screen();
-		// } 
-       
-
 	}
 	return NULL;
 }
@@ -806,7 +783,7 @@ int send_bytes(int sock_fd, void * buf, size_t len){
     return 0;
 }
 
-gboolean idle_function(gpointer user_data) {
+gboolean handle_cmd(gpointer user_data) {
 	int event;
     pthread_mutex_lock(&mutx);
 	if(rear == front)
@@ -821,10 +798,8 @@ gboolean idle_function(gpointer user_data) {
 	pthread_cond_signal(&cond);
   	pthread_mutex_unlock(&mutx);
 	
-	fprintf(stderr,"do check\n");
-	if(event == 16) 
+	if(event == Model.max_user*4) 
 	{
-		gameover();
 		return FALSE;
 	}
 
@@ -833,6 +808,9 @@ gboolean idle_function(gpointer user_data) {
 	else{	
 		move(event, movement);
 		display_screen();
+		if( current_num_item <= 0) {
+			gameover();
+		}
 	} 
 
     return TRUE;

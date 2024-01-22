@@ -10,11 +10,12 @@
 #include "../cJSON.h"
 
 #define BUF_SIZE 256
-#define MAX_USER 4 
+#define MAX_USER 4
 #define NAME_SIZE 16
+#define PATH_LENGTH 256
 
-int start_flag = 0; //num of connected user
-int end_flag = 0;
+int usr_cnt = 0; //num of connected user
+int game_start = 0;
 // am fi() 1 emaceb ,detrats si emag fi//
 int max_user;
 char ** user_name;
@@ -38,9 +39,8 @@ void error_handling(char * msg);
 //roadJson: read datas from json file
 int roadJson() 
 {
-	
-	char filepath[256];
-	fgets(filepath, 256, stdin);
+	char filepath[PATH_LENGTH];
+	fgets(filepath, PATH_LENGTH-1, stdin);
 	filepath[strlen(filepath)-1]=0;
 	FILE *file = fopen(filepath,"r");
 	if(file == NULL)
@@ -82,7 +82,6 @@ int roadJson()
 
 	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
 	max_user = num_user->valueint;
-	max_user = 2;
 	user_name = (char**)malloc(sizeof(char*) * max_user);
 	for(int i=0; i< max_user; i++)
 	{
@@ -117,8 +116,8 @@ void disconnected(int sock)
 
 	if(clnt_cnt == 0)
 	{
-		end_flag = 0;
-		start_flag = 0;
+		game_start = 0;
+		usr_cnt = 0;
 	}
 	pthread_mutex_unlock(&mutx);
 	close(sock);
@@ -166,7 +165,7 @@ int read_byte(int sock, void * buf, int size)
 		read_size += str_len;
 	}
 	return read_size;
-}//상훈님 파이팅 
+}
 
 //send_msg_all: send msg to all connected users
 void send_msg_all(void * event, int len)
@@ -195,11 +194,10 @@ void *handle_clnt(void * arg)
 	{
 		if (clnt_sock == clnt_socks[i])
 		{
-			// printf("id : %d\n", i);
 			read_byte(clnt_sock, (void *)user_name[i], name_size);
 			printf("%s is enter\n",user_name[i]);
 			write_byte(clnt_sock, (void *)&i, sizeof(int));
-			start_flag++; //TODO wanna change this name...
+			usr_cnt++;
 			break;
 		}
 	}
@@ -209,7 +207,7 @@ void *handle_clnt(void * arg)
 	write_byte(clnt_sock, (void *)&json_size, sizeof(int));
 	write_byte(clnt_sock, json_serialize, json_size);
 
-	while(start_flag < max_user); //wait untill all user is connected
+	while(usr_cnt < max_user); //wait untill all user is connected
 	
 	//send connected user information
 	for(int i=0; i< max_user; i++)
@@ -225,7 +223,7 @@ void *handle_clnt(void * arg)
 		printf("move: %d\n", event);
 		send_msg_all((void *)&event, sizeof(int));
 		//detect end flag
-		if(event == 16)
+		if(event == max_user*4)
 		{
 			printf("end game!\n");
 			disconnected(clnt_sock);
@@ -255,12 +253,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if(roadJson())
+	if(roadJson()) //parsing error return 1.
 		exit(1);
-
-	#ifdef DEBUG
-		fprintf(stderr,"max user : %d\n", max_user);
-	#endif
 
 	pthread_mutex_init(&mutx, NULL);
 	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -276,15 +270,13 @@ int main(int argc, char *argv[])
 	if (listen(serv_sock, 5) == -1)
 		error_handling("listen() error");
 	
-	//todo user max될때 처리
-	char ttrash[NAME_SIZE];
 	while (1)
 	{
 		clnt_adr_sz = sizeof(clnt_adr);
 		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 		
-		write_byte(clnt_sock, (void *)&end_flag, sizeof(int));
-		if(end_flag == 1)
+		write_byte(clnt_sock, (void *)&game_start, sizeof(int));
+		if(game_start == 1) //게임 중 플래그 start 
 		{
 			close(clnt_sock);
 			continue;
@@ -296,11 +288,9 @@ int main(int argc, char *argv[])
 		
 		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
 		pthread_detach(t_id);
-		
-
 
 		if(clnt_cnt == max_user)
-			end_flag = 1;
+			game_start = 1;
 		
 	}
 	free(json_serialize);

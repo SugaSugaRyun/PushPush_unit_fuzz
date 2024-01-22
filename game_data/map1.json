@@ -1,6 +1,6 @@
 {
 
-"timeout" : 30,
+"timeout" : 10,
 "max_user" : 2,
 "map": {
 	"map_width" : 10,
