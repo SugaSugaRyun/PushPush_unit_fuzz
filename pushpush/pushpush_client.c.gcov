@@ -1,0 +1,1298 @@
+        -:    0:Source:pushpush_client.c
+        -:    0:Graph:pushpush_client.gcno
+        -:    0:Data:-
+        -:    0:Runs:0
+        -:    0:Programs:0
+        -:    1:#include <stdio.h>
+        -:    2:#include <string.h>
+        -:    3:#include <stdlib.h>
+        -:    4:#include <time.h>
+        -:    5:#include <gtk/gtk.h>
+        -:    6:#include <unistd.h> 
+        -:    7:#include <arpa/inet.h>
+        -:    8:#include <sys/socket.h>
+        -:    9:#include <pthread.h>
+        -:   10:#include <errno.h>
+        -:   11:#include <sys/stat.h>
+        -:   12:#include "../cJSON.h"
+        -:   13:
+        -:   14:#define NAME_SIZE 16
+        -:   15:#define queue_size 20
+        -:   16:#define BUF_SIZE 128
+        -:   17:#define GDK_KEY_UP 65362
+        -:   18:#define GDK_KEY_DOWN 65364
+        -:   19:#define GDK_KEY_LEFT 65361
+        -:   20:#define GDK_KEY_RIGHT 65363
+        -:   21:
+        -:   22://object data structures
+        -:   23:typedef struct location{
+        -:   24:    int x;
+        -:   25:    int y;
+        -:   26:} location_t;
+        -:   27:
+        -:   28:typedef struct user{
+        -:   29:    char name[NAME_SIZE];
+        -:   30:    int score;
+        -:   31:    location_t base_loc;
+        -:   32:    location_t user_loc;
+        -:   33:}user_t;
+        -:   34:
+        -:   35:typedef struct object_data{
+        -:   36:    int map_width;
+        -:   37:	int map_height;
+        -:   38:    int timeout;
+        -:   39:    int max_user;
+        -:   40:    struct user * users;
+        -:   41:    location_t * item_locations;
+        -:   42:    location_t * block_locations;
+        -:   43:}object_data_t;
+        -:   44:
+        -:   45:enum entity {
+        -:   46:	EMPTY = 0,
+        -:   47:	BLOCK = -1,
+        -:   48:	ITEM = -9, //item will be -10 ~ -110
+        -:   49:	USER = 1, //user wil be 1 ~ 3
+        -:   50:	BASE = 9, //base will be 10 ~ 30
+        -:   51:};
+        -:   52:
+        -:   53:enum spans {
+        -:   54:	UP, 
+        -:   55:	DOWN, 
+        -:   56:	LEFT, 
+        -:   57:	RIGHT
+        -:   58:};
+        -:   59:
+        -:   60:char user_color[8][20] = {"#faa8a1", "#ffe479", "#dbe87c", "#a19b8b", "#ea9574", "#ffca79", "#c79465", "#e3dbcf"};
+        -:   61:
+        -:   62:int ** map; // cell
+        -:   63:object_data_t Model; //model
+        -:   64:char msg_info[BUF_SIZE] = "";
+        -:   65:char buf[BUF_SIZE] = "";
+        -:   66:int sock;
+        -:   67:int my_id;
+        -:   68:int num_item, num_block;
+        -:   69:int current_num_item;
+        -:   70:
+        -:   71:pthread_mutex_t mutx;
+        -:   72:pthread_cond_t cond;
+        -:   73:int event_arry[queue_size];
+        -:   74:int rear = 0;
+        -:   75:int front = 0;
+        -:   76:
+        -:   77:
+        -:   78://GUI functions
+        -:   79:GtkWidget *window;
+        -:   80:GtkWidget *mat_main, *mat_changed_screen, *mat_board, *label_info, *label_me, *mat_fixed_screen, *mat_screen;
+        -:   81:GtkWidget *mat_ans_btn, *mat_sol_btn;
+        -:   82:GtkWidget *btn_solve, *btn_exit, *btn_next, *btn_prev;
+        -:   83:GtkWidget *btn_auto, *btn_up, *btn_down, *btn_left, *btn_right;
+        -:   84:GtkWidget *label_name;
+        -:   85:GtkWidget ** label_score; 
+        -:   86:GdkPixbuf *icon, *icon_block[2], *icon_fruit[11];
+        -:   87:GdkPixbuf ** icon_player;
+        -:   88:GdkPixbuf *create_pixbuf(const gchar * filename);
+        -:   89:GtkWidget* create_entity(int id);
+        -:   90:int load_icons();
+        -:   91:int check_map_valid();
+        -:   92:void set_window();
+        -:   93:static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
+        -:   94:void display_screen();
+        -:   95:void add_mat_board();
+        -:   96:void exit_game(GtkWidget* widget);
+        -:   97:void gameover();
+        -:   98:
+        -:   99://for move handling
+        -:  100:int check_validation(int cmd);
+        -:  101:int move(int cmd, int movement);
+        -:  102:void update_model(int id, int x, int y);
+        -:  103:void update_cell();
+        -:  104:int item_idxToId(int idx);
+        -:  105:int item_idToIdx(int id);
+        -:  106:void score_up(int user_idx);
+        -:  107:gboolean handle_cmd(gpointer user_data) ;
+        -:  108:
+        -:  109://for networking
+        -:  110:int recv_bytes(int sock_fd, void * buf, size_t len);
+        -:  111:int send_bytes(int sock_fd, void * buf, size_t len);
+        -:  112:void handle_timeout(int signum);
+        -:  113:int parseJson(char * jsonfile);
+        -:  114:void *recv_msg(void * arg);
+        -:  115:void cannot_enter();
+        -:  116:
+        -:  117:
+        -:  118://this is MAIN
+function main called 0 returned 0% blocks executed 0%
+    #####:  119:int main(int argc, char *argv[]) {
+        -:  120:
+        -:  121:	//get the username from stdin 
+        -:  122:	//TODO maybe need change to args
+    #####:  123:	pthread_mutex_init(&mutx, NULL);
+call    0 never executed
+    #####:  124:	pthread_cond_init(&cond, NULL);
+call    0 never executed
+        -:  125:
+    #####:  126:	signal(SIGALRM, handle_timeout);
+call    0 never executed
+    #####:  127:	gtk_init(&argc, &argv); //init GTK by args
+call    0 never executed
+        -:  128:
+        -:  129:	struct sockaddr_in serv_addr;
+        -:  130:	pthread_t snd_thread, rcv_thread;
+        -:  131:	void * thread_return;
+        -:  132:
+    #####:  133:	if (argc != 3) {
+branch  0 never executed
+branch  1 never executed
+    #####:  134:		printf("Usage : %s <IP> <port>\n", argv[0]);
+call    0 never executed
+    #####:  135:		exit(1);
+call    0 never executed
+        -:  136:	 }
+    #####:  137:	sock = socket(PF_INET, SOCK_STREAM, 0);
+call    0 never executed
+        -:  138:	
+    #####:  139:	memset(&serv_addr, 0, sizeof(serv_addr));
+    #####:  140:	serv_addr.sin_family = AF_INET;
+    #####:  141:	serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
+call    0 never executed
+    #####:  142:	serv_addr.sin_port = htons(atoi(argv[2]));
+        -:  143:	  
+    #####:  144:	if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+        -:  145:	{
+    #####:  146:		fprintf(stderr, "ERROR: connect() error\n");
+call    0 never executed
+    #####:  147:		exit(1);
+call    0 never executed
+        -:  148:	}
+        -:  149:
+        -:  150:	int game_started;
+    #####:  151:	if (recv_bytes(sock, (void*)&game_started, sizeof(int)) == -1) 
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  152:    	return 1;
+        -:  153:
+    #####:  154:	if(game_started){
+branch  0 never executed
+branch  1 never executed
+    #####:  155:		cannot_enter();
+call    0 never executed
+    #####:  156:		close(sock);
+call    0 never executed
+    #####:  157:		return 0;
+        -:  158:	}
+        -:  159:	
+        -:  160:	while(1){
+    #####:  161:		printf("enter your name: ");
+call    0 never executed
+    #####:  162:		scanf("%s", buf);
+call    0 never executed
+    #####:  163:		if(strlen(buf) > NAME_SIZE){
+branch  0 never executed
+branch  1 never executed
+    #####:  164:			printf("invalid name. please pick another one.");	
+call    0 never executed
+    #####:  165:			continue;
+    #####:  166:		}else break;
+        -:  167:	}
+        -:  168:	
+    #####:  169:	int name_size = strlen(buf);
+    #####:  170:	if(send_bytes(sock, (void *)&name_size, sizeof(int)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  171:		return 1;
+        -:  172:
+    #####:  173:	if(send_bytes(sock, buf, strlen(buf)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  174:		return 1;
+        -:  175:
+        -:  176:    //recv my id
+    #####:  177:	if (recv_bytes(sock, (void*)&my_id, sizeof(int)) == -1) 
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  178:    	return 1;
+        -:  179:		
+    #####:  180:	fprintf(stderr, "id : %d\n", my_id);
+call    0 never executed
+        -:  181:	
+        -:  182:    // recv json file
+        -:  183:    int json_size;
+    #####:  184:    if (recv_bytes(sock, (void*)&(json_size), sizeof(int)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  185:		return 1;
+        -:  186:
+    #####:  187:    char * json_format = malloc(sizeof(char) * json_size);
+    #####:  188:    if (recv_bytes(sock, json_format, json_size) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  189:		return 1;
+        -:  190:
+    #####:  191:	if(parseJson(json_format))
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  192:		return 1;
+        -:  193:	
+        -:  194:	// receive all player's name size, name 
+        -:  195:	// test hardcoding
+    #####:  196:	for (int i = 0; i < Model.max_user; i++) {
+branch  0 never executed
+branch  1 never executed
+        -:  197:		int name_size;
+    #####:  198:		if (recv_bytes(sock, (void*)&(name_size), sizeof(name_size)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  199:			return 1;
+        -:  200:	
+    #####:  201:		if (recv_bytes(sock, (void*)(Model.users[i].name), name_size) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  202:			return 1;
+    #####:  203:		Model.users[i].name[name_size] = 0x0;
+    #####:  204:		printf("id : %d name : %s\n",i,Model.users[i].name);
+call    0 never executed
+        -:  205:	}
+        -:  206:
+        -:  207:
+    #####:  208:	map = (int **) malloc (sizeof(int *) * Model.map_width);
+    #####:  209:	for(int i=0;i<Model.map_width;i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  210:		map[i] =(int *) malloc(sizeof(int) * Model.map_height);
+        -:  211:	} 
+        -:  212:
+    #####:  213:	label_score = (GtkWidget **) malloc(Model.max_user* sizeof(GtkWidget *));
+    #####:  214:	icon_player = (GdkPixbuf **) malloc(Model.max_user * sizeof(GdkPixbuf *));
+        -:  215:
+    #####:  216:	update_cell();
+call    0 never executed
+        -:  217:
+        -:  218:	//load icons from icons dir
+    #####:  219:	if(load_icons()) {
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  220:		fprintf(stderr,"failed to load icons\n");
+call    0 never executed
+    #####:  221:		return 1;
+        -:  222:  	}
+        -:  223:
+    #####:  224:	srand((unsigned int)time(0));
+call    0 never executed
+call    1 never executed
+    #####:  225:	set_window();
+call    0 never executed
+        -:  226:
+    #####:  227:	alarm(Model.timeout);
+call    0 never executed
+        -:  228:
+    #####:  229:	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
+call    0 never executed
+    #####:  230:	g_timeout_add(50,handle_cmd, NULL);
+call    0 never executed
+        -:  231:	
+    #####:  232:  	gtk_main(); //enter the GTK main loop
+call    0 never executed
+        -:  233:
+    #####:  234:	pthread_join(rcv_thread, &thread_return);
+call    0 never executed
+    #####:  235:	free(map);
+    #####:  236:	close(sock);  
+call    0 never executed
+    #####:  237:	pthread_mutex_destroy(&mutx);
+call    0 never executed
+        -:  238:
+    #####:  239: 	return 0;
+        -:  240:}
+        -:  241:
+        -:  242:
+        -:  243://get pixbuf(for load image) from filename
+function create_pixbuf called 0 returned 0% blocks executed 0%
+    #####:  244:GdkPixbuf *create_pixbuf(const gchar * filename) {
+        -:  245:   GdkPixbuf *pixbuf;
+    #####:  246:   GError *error = NULL;
+    #####:  247:   pixbuf = gdk_pixbuf_new_from_file(filename, &error);
+call    0 never executed
+    #####:  248:   if (!pixbuf) {
+branch  0 never executed
+branch  1 never executed
+    #####:  249:      fprintf(stderr, "%s\n", error->message);
+call    0 never executed
+    #####:  250:      g_error_free(error);
+call    0 never executed
+        -:  251:   }
+    #####:  252:   return pixbuf;
+        -:  253:}
+        -:  254:
+        -:  255:
+        -:  256://load icons needed
+        -:  257://0 on success, 1 on failure
+function load_icons called 0 returned 0% blocks executed 0%
+    #####:  258:int load_icons(){
+        -:  259:   	GdkPixbuf *pixbuf;
+    #####:  260:	for(int i = 0; i < Model.max_user; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  261:		sprintf(buf, "../icons/user%d.png", i);
+    #####:  262:		if((pixbuf = create_pixbuf(buf)) == NULL) return 1;
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  263:		else fprintf(stderr,"loading %s...\n", buf);
+call    0 never executed
+    #####:  264:		icon_player[i] = gdk_pixbuf_scale_simple(pixbuf, 32, 32, GDK_INTERP_BILINEAR);
+call    0 never executed
+    #####:  265:		g_object_unref(pixbuf);
+call    0 never executed
+        -:  266:	}
+    #####:  267:	for(int i = 0; i < 2; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  268:		sprintf(buf, "../icons/block%d.png", i);
+    #####:  269:		if((pixbuf = create_pixbuf(buf)) == NULL) return 1;
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  270:		else fprintf(stderr,"loading %s...\n", buf);
+call    0 never executed
+    #####:  271:		icon_block[i] = gdk_pixbuf_scale_simple(pixbuf, 32, 32, GDK_INTERP_BILINEAR);
+call    0 never executed
+    #####:  272:		g_object_unref(pixbuf);
+call    0 never executed
+        -:  273:	}
+    #####:  274:	for(int i = 0; i < 12; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  275:		sprintf(buf, "../icons/fruit%d.png", i);
+    #####:  276:		if((pixbuf = create_pixbuf(buf)) == NULL) return 1;
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  277:		else fprintf(stderr,"loading %s...\n", buf);
+call    0 never executed
+    #####:  278:		icon_fruit[i] = gdk_pixbuf_scale_simple(pixbuf, 32, 32, GDK_INTERP_BILINEAR);
+call    0 never executed
+    #####:  279:		g_object_unref(pixbuf);
+call    0 never executed
+        -:  280:	}
+        -:  281:
+    #####:  282:	fprintf(stderr,"success to load all icons!\n");
+call    0 never executed
+    #####:  283:	return 0;
+        -:  284:
+        -:  285:}
+        -:  286:
+        -:  287://GUI: set the main window
+function set_window called 0 returned 0% blocks executed 0%
+    #####:  288:void set_window(){
+        -:  289:
+    #####:  290:  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);//make window
+call    0 never executed
+    #####:  291:  g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);//for termination
+call    0 never executed
+    #####:  292:  g_signal_connect(G_OBJECT(window), "key-press-event", G_CALLBACK(on_key_press), NULL);
+call    0 never executed
+call    1 never executed
+        -:  293: 
+        -:  294:  //set the window
+    #####:  295:  gtk_window_set_title(GTK_WINDOW(window), "pushpush HK");
+call    0 never executed
+call    1 never executed
+    #####:  296:  gtk_window_set_default_size(GTK_WINDOW(window), 1024, 512);
+call    0 never executed
+call    1 never executed
+    #####:  297:  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+call    0 never executed
+call    1 never executed
+    #####:  298:  gtk_container_set_border_width(GTK_CONTAINER(window), 5);
+call    0 never executed
+call    1 never executed
+        -:  299:
+        -:  300:  //change the icon of page(for cuteness)
+    #####:  301:  icon = create_pixbuf("../icons/catIcon.png");
+call    0 never executed
+    #####:  302:  gtk_window_set_icon(GTK_WINDOW(window), icon);
+call    0 never executed
+call    1 never executed
+        -:  303:  
+        -:  304:  //set main matrix
+    #####:  305:  mat_main = gtk_table_new(8, 8-1, TRUE);
+call    0 never executed
+        -:  306:	
+    #####:  307:  strcpy(msg_info, "Welcome to PushPush HK!");
+    #####:  308:  label_info = gtk_label_new(msg_info);
+call    0 never executed
+    #####:  309:  gtk_table_attach_defaults(GTK_TABLE(mat_main), label_info, 0, 11, 0, 1);
+call    0 never executed
+call    1 never executed
+        -:  310:  
+    #####:  311:  display_screen();
+call    0 never executed
+    #####:  312:  add_mat_board();
+call    0 never executed
+        -:  313: 
+    #####:  314:  label_me = gtk_label_new("23-winter capston study#2 leeejjju");
+call    0 never executed
+    #####:  315:  gtk_misc_set_alignment(GTK_MISC(label_me), 0.0, 1.0);
+call    0 never executed
+call    1 never executed
+    #####:  316:  gtk_table_attach_defaults(GTK_TABLE(mat_main), label_me, 0, 8+1, 6, 8);
+call    0 never executed
+call    1 never executed
+        -:  317:
+    #####:  318:  gtk_container_add(GTK_CONTAINER(window), mat_main);
+call    0 never executed
+call    1 never executed
+    #####:  319:  gtk_widget_show_all(window); //is it dup with above
+call    0 never executed
+    #####:  320:  g_object_unref(icon);
+call    0 never executed
+        -:  321:
+        -:  322:
+    #####:  323:}
+        -:  324:
+        -:  325://create entity Widget from ids, return widget* or NULL on id-empty
+function create_entity called 0 returned 0% blocks executed 0%
+    #####:  326:GtkWidget* create_entity(int id){
+        -:  327:
+        -:  328:	GtkWidget* sprite;
+        -:  329:	GdkColor color;
+        -:  330:	int idx;
+        -:  331:
+    #####:  332:	if(id == EMPTY) return NULL;
+branch  0 never executed
+branch  1 never executed
+    #####:  333:	else if(id == BLOCK){
+branch  0 never executed
+branch  1 never executed
+    #####:  334:		idx = rand() % 2;
+call    0 never executed
+    #####:  335:      	sprite = gtk_image_new_from_pixbuf(icon_block[idx]); 
+call    0 never executed
+    #####:  336:	}else if(id < ITEM){
+branch  0 never executed
+branch  1 never executed
+    #####:  337:		idx = (0-id)/10-1;
+    #####:  338:      	sprite = gtk_image_new_from_pixbuf(icon_fruit[idx]); 
+call    0 never executed
+    #####:  339:	}else if(id > BASE){
+branch  0 never executed
+branch  1 never executed
+    #####:  340:		idx = id/10 -1;
+    #####:  341:		sprite = gtk_event_box_new();
+call    0 never executed
+        -:  342:		//gtk_widget_set_size_request(sprite, 32, 32);		
+    #####:  343:		gdk_color_parse(user_color[idx], &color);
+call    0 never executed
+    #####:  344:		gtk_widget_modify_bg(sprite, GTK_STATE_NORMAL, &color);
+call    0 never executed
+        -:  345:	}else{
+    #####:  346:		idx = id-1;
+    #####:  347:      	sprite = gtk_image_new_from_pixbuf(icon_player[idx]); 
+call    0 never executed
+        -:  348:	}
+    #####:  349:	return sprite;
+        -:  350:
+        -:  351:}
+        -:  352:
+        -:  353://GUI: display screen from map[] model
+function display_screen called 0 returned 0% blocks executed 0%
+    #####:  354:void display_screen(){
+        -:  355:	
+        -:  356:  //set screen matrix
+    #####:  357:  if(mat_changed_screen == NULL){ //initially once
+branch  0 never executed
+branch  1 never executed
+    #####:  358:	mat_screen = gtk_fixed_new();
+call    0 never executed
+    #####:  359:	mat_changed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
+call    0 never executed
+    #####:  360:	mat_fixed_screen = gtk_table_new(Model.map_width, Model.map_height, TRUE);
+call    0 never executed
+    #####:  361:  for (int i = 0; i < Model.map_width; i++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  362:    for (int j = 0; j < Model.map_height; j++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  363:			if(map[j][i] == BLOCK || map[j][i] > BASE){
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  364:				GtkWidget* sprite = create_entity(map[j][i]);
+call    0 never executed
+    #####:  365:				if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_fixed_screen), sprite, i, i+1, j, j+1);
+branch  0 never executed
+branch  1 never executed
+call    2 never executed
+call    3 never executed
+        -:  366:			}	
+        -:  367:		}
+        -:  368:  }
+    #####:  369:	gtk_fixed_put(GTK_FIXED(mat_screen), mat_fixed_screen, 0, 0);
+call    0 never executed
+call    1 never executed
+    #####:  370:	gtk_fixed_put(GTK_FIXED(mat_screen), mat_changed_screen, 0, 0);
+call    0 never executed
+call    1 never executed
+    #####:  371:  }else gtk_container_foreach(GTK_CONTAINER(mat_changed_screen), (GtkCallback)gtk_widget_destroy, NULL); 
+call    0 never executed
+call    1 never executed
+        -:  372:
+    #####:  373:  for (int i = 0; i < Model.map_width; i++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  374:    for (int j = 0; j < Model.map_height; j++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  375:		if(map[j][i] == BLOCK || map[j][i] > BASE) 
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  376:			continue;
+    #####:  377:		GtkWidget* sprite = create_entity(map[j][i]);
+call    0 never executed
+    #####:  378:		if(sprite != NULL) gtk_table_attach_defaults(GTK_TABLE(mat_changed_screen), sprite, i, i+1, j, j+1);
+branch  0 never executed
+branch  1 never executed
+call    2 never executed
+call    3 never executed
+        -:  379:    }
+        -:  380:  }
+        -:  381:
+    #####:  382:  if(!gtk_widget_get_parent(mat_screen)) gtk_table_attach_defaults(GTK_TABLE(mat_main), mat_screen, 0, 9, 1, 10);
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+call    3 never executed
+call    4 never executed
+    #####:  383:  gtk_widget_show_all(window); 
+call    0 never executed
+        -:  384:
+    #####:  385:}
+        -:  386:
+        -:  387://GUI: set the score board
+function add_mat_board called 0 returned 0% blocks executed 0%
+    #####:  388:void add_mat_board(){
+        -:  389:
+        -:  390:  //set board vbox
+    #####:  391:  int board_width = 8;
+    #####:  392:  mat_board = gtk_table_new(board_width, 10, TRUE);
+call    0 never executed
+        -:  393:
+    #####:  394:  GtkWidget* line1 = gtk_hseparator_new();
+call    0 never executed
+    #####:  395:  sprintf(buf, "Good luck, %s!", Model.users[my_id].name);
+    #####:  396:  label_name = gtk_label_new(buf);
+call    0 never executed
+    #####:  397:  GtkWidget* sprite = gtk_image_new_from_pixbuf(icon_player[my_id]);
+call    0 never executed
+    #####:  398:  GtkWidget* line2 = gtk_hseparator_new();
+call    0 never executed
+    #####:  399:  GtkWidget *label_title = gtk_label_new(":: SCORE ::");
+call    0 never executed
+        -:  400:  
+    #####:  401:  gtk_table_attach_defaults(GTK_TABLE(mat_board), line1, 0, board_width+1, 0, 1);
+call    0 never executed
+call    1 never executed
+    #####:  402:  gtk_table_attach_defaults(GTK_TABLE(mat_board), label_name, 0, board_width+1, 1, 2);
+call    0 never executed
+call    1 never executed
+    #####:  403:  gtk_table_attach_defaults(GTK_TABLE(mat_board), line2, 0, board_width+1, 2, 3);
+call    0 never executed
+call    1 never executed
+    #####:  404:  gtk_table_attach_defaults(GTK_TABLE(mat_board), sprite, 0, board_width+1, 3, 4);
+call    0 never executed
+call    1 never executed
+    #####:  405:  gtk_table_attach_defaults(GTK_TABLE(mat_board), label_title, 0, board_width+1, 4, 5);
+call    0 never executed
+call    1 never executed
+        -:  406:	
+    #####:  407:  GtkWidget* score_board = gtk_vbox_new(TRUE, 10);
+call    0 never executed
+    #####:  408:  for(int i = 0; i < Model.max_user; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  409:	sprintf(msg_info, "%s: %d", Model.users[i].name, Model.users[i].score);		
+    #####:  410:	label_score[i] = gtk_label_new(msg_info);
+call    0 never executed
+    #####:  411:	gtk_container_add(GTK_CONTAINER(score_board), label_score[i]);
+call    0 never executed
+call    1 never executed
+        -:  412:  } 
+    #####:  413:  gtk_container_add(GTK_CONTAINER(score_board), gtk_label_new(""));
+call    0 never executed
+call    1 never executed
+call    2 never executed
+    #####:  414:  gtk_table_attach_defaults(GTK_TABLE(mat_board), score_board, 0, board_width+1, 5, 10);
+call    0 never executed
+call    1 never executed
+        -:  415:
+    #####:  416:  btn_exit = gtk_button_new_with_label("exit game");
+call    0 never executed
+    #####:  417:  gtk_table_attach_defaults(GTK_TABLE(mat_board), btn_exit, 0, board_width+1, 10, 11);
+call    0 never executed
+call    1 never executed
+    #####:  418:  g_signal_connect(G_OBJECT(btn_exit), "clicked", G_CALLBACK(exit_game), NULL);
+call    0 never executed
+call    1 never executed
+    #####:  419:  gtk_table_attach_defaults(GTK_TABLE(mat_main), mat_board, 9, 11, 0, 8); 
+call    0 never executed
+call    1 never executed
+        -:  420:
+    #####:  421:}
+        -:  422:
+function exit_game called 0 returned 0% blocks executed 0%
+    #####:  423:void exit_game(GtkWidget* widget){
+    #####:  424:	printf("See you again!\n");
+call    0 never executed
+    #####:  425:	exit(EXIT_SUCCESS);
+        -:  426:}
+        -:  427:
+        -:  428:
+function check_validation called 0 returned 0% blocks executed 0%
+    #####:  429:int check_validation(int cmd){
+    #####:  430:	int user_idx = cmd/4;
+    #####:  431:	int span = cmd%4;	
+        -:  432:	
+        -:  433:	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
+    #####:  434:	curr_x = target_x = item_target_x = Model.users[user_idx].user_loc.x;
+    #####:  435:	curr_y = target_y = item_target_y = Model.users[user_idx].user_loc.y;
+    #####:  436:	switch(span){
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+    #####:  437:		case UP:		
+    #####:  438:			if((target_y = (curr_y - 1)) < 0) return 0;//out of array
+branch  0 never executed
+branch  1 never executed
+    #####:  439:			else if(map[target_y][target_x] == EMPTY) return 1; //empty
+branch  0 never executed
+branch  1 never executed
+    #####:  440:			else if(map[target_y][target_x] > BASE) return 1; //base
+branch  0 never executed
+branch  1 never executed
+    #####:  441:			else if(map[target_y][target_x] < ITEM){ 
+branch  0 never executed
+branch  1 never executed
+    #####:  442:				if((item_target_y = (target_y - 1)) < 0) return 0; //item and non-movabel
+branch  0 never executed
+branch  1 never executed
+    #####:  443:				if(map[item_target_y][item_target_x] == EMPTY) return map[target_y][target_x]; //item and movable
+branch  0 never executed
+branch  1 never executed
+    #####:  444:				if((map[item_target_y][item_target_x] > BASE) && ((map[item_target_y][item_target_x]) == ((user_idx + 1) * 10))) return (0 - map[target_y][target_x]);
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  445:				if(map[item_target_y][item_target_x] > BASE) return map[target_y][target_x]; //item and movable as other's base
+branch  0 never executed
+branch  1 never executed
+    #####:  446:				else return 0;	//others (block, user, base)
+    #####:  447:			}else return 0;	
+        -:  448:			break;
+        -:  449:
+    #####:  450:		case DOWN:
+    #####:  451:			if((target_y = (curr_y + 1)) > Model.map_height -1 ) return 0;//out of array
+branch  0 never executed
+branch  1 never executed
+    #####:  452:			else if(map[target_y][target_x] == EMPTY) return 1; //empty
+branch  0 never executed
+branch  1 never executed
+    #####:  453:			else if(map[target_y][target_x] > BASE) return 1; //base
+branch  0 never executed
+branch  1 never executed
+    #####:  454:			else if(map[target_y][target_x] < ITEM){ 
+branch  0 never executed
+branch  1 never executed
+    #####:  455:				if((item_target_y = (target_y + 1)) > Model.map_height - 1) return 0; //item and non-movabel
+branch  0 never executed
+branch  1 never executed
+    #####:  456:				if(map[item_target_y][item_target_x] == EMPTY) return map[target_y][target_x]; //item and movable
+branch  0 never executed
+branch  1 never executed
+    #####:  457:				if((map[item_target_y][item_target_x] > BASE) && ((map[item_target_y][item_target_x]) == ((user_idx + 1) * 10))) return (0 - map[target_y][target_x]);
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  458:				if(map[item_target_y][item_target_x] > BASE) return map[target_y][target_x]; //item and movable as other's base
+branch  0 never executed
+branch  1 never executed
+    #####:  459:				else return 0;	//others (block, user, base)
+    #####:  460:			}else return 0;	
+        -:  461:			break;
+        -:  462:
+        -:  463:
+    #####:  464:		case LEFT:
+    #####:  465:			if((target_x = (curr_x - 1)) < 0) return 0;//out of array
+branch  0 never executed
+branch  1 never executed
+    #####:  466:			else if(map[target_y][target_x] == EMPTY) return 1; //empty
+branch  0 never executed
+branch  1 never executed
+    #####:  467:			else if(map[target_y][target_x] > BASE) return 1; //base
+branch  0 never executed
+branch  1 never executed
+    #####:  468:			else if(map[target_y][target_x] < ITEM){ 
+branch  0 never executed
+branch  1 never executed
+    #####:  469:				if((item_target_x = (target_x - 1)) < 0) return 0; //item and non-movabel
+branch  0 never executed
+branch  1 never executed
+    #####:  470:				if(map[item_target_y][item_target_x] == EMPTY) return map[target_y][target_x]; //item and movable
+branch  0 never executed
+branch  1 never executed
+    #####:  471:				if((map[item_target_y][item_target_x] > BASE) && ((map[item_target_y][item_target_x]) == ((user_idx + 1)  * 10))) return (0 - map[target_y][target_x]);
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  472:				if(map[item_target_y][item_target_x] > BASE) return map[target_y][target_x]; //item and movable as other's base
+branch  0 never executed
+branch  1 never executed
+        -:  473:
+    #####:  474:				else return 0;	//others (block, user, base)
+    #####:  475:			}else return 0;	
+        -:  476:			break;
+        -:  477:
+    #####:  478:		case RIGHT:
+    #####:  479:			if((target_x = (curr_x + 1)) > Model.map_width  - 1) return 0;//out of array
+branch  0 never executed
+branch  1 never executed
+    #####:  480:			else if(map[target_y][target_x] == EMPTY) return 1; //empty
+branch  0 never executed
+branch  1 never executed
+    #####:  481:			else if(map[target_y][target_x] > BASE) return 1; //base
+branch  0 never executed
+branch  1 never executed
+    #####:  482:			else if(map[target_y][target_x] < ITEM){ 
+branch  0 never executed
+branch  1 never executed
+    #####:  483:				if((item_target_x = (target_x + 1)) > Model.map_width -1) return 0; //item and non-movabel
+branch  0 never executed
+branch  1 never executed
+    #####:  484:				if(map[item_target_y][item_target_x] == EMPTY) return map[target_y][target_x]; //item and movable
+branch  0 never executed
+branch  1 never executed
+    #####:  485:				if((map[item_target_y][item_target_x] > BASE) && ((map[item_target_y][item_target_x]) == ((user_idx + 1) * 10))) return (0 - map[target_y][target_x]);
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  486:				if(map[item_target_y][item_target_x] > BASE) return map[target_y][target_x]; //item and movable as other's base
+branch  0 never executed
+branch  1 never executed
+    #####:  487:				else return 0;	//others (block, user, base)
+    #####:  488:			}else return 0;	
+        -:  489:			break;
+        -:  490:	}
+        -:  491:
+    #####:  492:}
+        -:  493:
+        -:  494://update cells by cmd(0-15), 
+        -:  495://return 0 on normal moving, return 1 on get-score moving
+        -:  496://TODO 
+function move called 0 returned 0% blocks executed 0%
+    #####:  497:int move(int cmd, int movement){
+    #####:  498:	int user_idx = cmd/4;
+    #####:  499:	int span = cmd%4;	
+        -:  500:	int curr_x, curr_y, target_x, target_y, item_target_x, item_target_y;
+    #####:  501:	curr_x = target_x = item_target_x = Model.users[user_idx].user_loc.x;
+    #####:  502:	curr_y = target_y = item_target_y = Model.users[user_idx].user_loc.y;
+    #####:  503:	switch(span){
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+    #####:  504:		case UP:		
+    #####:  505:			target_y = curr_y - 1;
+    #####:  506:			item_target_y = target_y - 1;
+    #####:  507:			break;	
+    #####:  508:		case DOWN:
+    #####:  509:			target_y = curr_y + 1;
+    #####:  510:			item_target_y = target_y + 1;
+    #####:  511:			break;	
+    #####:  512:		case LEFT:
+    #####:  513:			target_x = curr_x - 1;
+    #####:  514:			item_target_x = target_x - 1;
+    #####:  515:			break;	
+    #####:  516:		case RIGHT:
+    #####:  517:			target_x = curr_x + 1;
+    #####:  518:			item_target_x = target_x + 1;
+    #####:  519:			break;	
+        -:  520:	}
+        -:  521:	
+    #####:  522:	if(movement < ITEM){ //valid and item-empty
+branch  0 never executed
+branch  1 never executed
+    #####:  523:		fprintf(stderr,"move for item %d!!!\n", movement);	
+call    0 never executed
+    #####:  524:		update_model(movement, item_target_x, item_target_y);	
+call    0 never executed
+    #####:  525:	}else if(movement > (0-ITEM)){ //valid and item-scoreup
+branch  0 never executed
+branch  1 never executed
+    #####:  526:		fprintf(stderr,"move for success %d!!!\n", movement);	
+call    0 never executed
+    #####:  527:		update_model((0-movement), -1, -1);	
+call    0 never executed
+    #####:  528:		score_up(user_idx);
+call    0 never executed
+    #####:  529:		current_num_item--;
+        -:  530:	}
+    #####:  531:	update_model(user_idx+1, target_x,target_y);	
+call    0 never executed
+    #####:  532:	fprintf(stderr,"move finish!\n");
+call    0 never executed
+    #####:  533:}
+        -:  534:
+function on_key_press called 0 returned 0% blocks executed 0%
+    #####:  535:gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+        -:  536:    
+    #####:  537:	const gchar *greeting = NULL;
+    #####:  538:	int cmd = my_id*4;
+    #####:  539:    switch (event->keyval) {
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+    #####:  540:        case GDK_KEY_UP:
+    #####:  541:            greeting = "up key pressed...";
+    #####:  542:			cmd += 0;
+    #####:  543:            break;
+    #####:  544:        case GDK_KEY_DOWN:
+    #####:  545:            greeting = "down key pressed...";
+    #####:  546:			cmd += 1;
+    #####:  547:            break;
+    #####:  548:        case GDK_KEY_LEFT:
+    #####:  549:            greeting = "left key pressed...";
+    #####:  550:			cmd += 2;
+    #####:  551:            break;
+    #####:  552:        case GDK_KEY_RIGHT:
+    #####:  553:            greeting = "right key pressed...";
+    #####:  554:			cmd += 3;
+    #####:  555:            break;
+    #####:  556:	default:
+    #####:  557:	    return TRUE;
+        -:  558:    }
+    #####:  559:	fprintf(stderr,"keyboard :%d player id : %d, cmd : %d\n", event->keyval, my_id ,cmd);
+call    0 never executed
+    #####:  560:	send_bytes(sock, (void*)&cmd, sizeof(int));
+call    0 never executed
+        -:  561:
+    #####:  562:	return TRUE;
+        -:  563:}
+        -:  564:
+function update_model called 0 returned 0% blocks executed 0%
+    #####:  565:void update_model(int id, int x, int y){
+        -:  566:
+    #####:  567:	printf("update model\n");
+call    0 never executed
+        -:  568:
+        -:  569:	int idx;
+    #####:  570:	if(id < ITEM){ //item
+branch  0 never executed
+branch  1 never executed
+    #####:  571:		idx = item_idToIdx(id);
+call    0 never executed
+    #####:  572:		Model.item_locations[idx].x = x;	
+    #####:  573:		Model.item_locations[idx].y = y;	
+    #####:  574:		fprintf(stderr,"item model updated\n");
+call    0 never executed
+        -:  575:	}else{ //user
+    #####:  576:		idx = id - 1; 
+    #####:  577:		Model.users[idx].user_loc.x = x;	
+    #####:  578:		Model.users[idx].user_loc.y = y;	
+    #####:  579:		fprintf(stderr,"user model updated\n");
+call    0 never executed
+        -:  580:	}
+    #####:  581:	update_cell();
+call    0 never executed
+        -:  582:	//for debug
+    #####:  583:	for (int i = 0; i < Model.map_width; i++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  584:      for (int j = 0; j < Model.map_height; j++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  585:		fprintf(stderr,"%3d ",map[i][j]);
+call    0 never executed
+        -:  586:	  }
+    #####:  587:	  fprintf(stderr,"\n");
+call    0 never executed
+        -:  588:    }
+        -:  589:
+    #####:  590:}
+        -:  591:
+function update_cell called 0 returned 0% blocks executed 0%
+    #####:  592:void update_cell(){
+        -:  593:
+        -:  594:	//init
+    #####:  595:	for(int i = 0; i < Model.map_width; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  596:		for(int j = 0; j < Model.map_height; j++){
+branch  0 never executed
+branch  1 never executed
+    #####:  597:			map[j][i] = EMPTY;
+        -:  598:		}
+        -:  599:	}
+        -:  600:
+        -:  601:	//base and user
+    #####:  602:	for(int i = 0; i < Model.max_user; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  603:		int id = i+1;
+    #####:  604:		map[Model.users[i].user_loc.y][Model.users[i].user_loc.x] = id;
+    #####:  605:		map[Model.users[i].base_loc.y][Model.users[i].base_loc.x] = id*10;
+        -:  606:
+    #####:  607:		fprintf(stderr,"user %d  x : %d, y : %d, base %d, %d\n",i, Model.users[i].user_loc.x,Model.users[i].user_loc.y, Model.users[i].base_loc.x,Model.users[i].base_loc.y);
+call    0 never executed
+        -:  608:	}
+        -:  609:	//block
+    #####:  610:	for (int i = 0; i < num_block; i++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  611:		map[Model.block_locations[i].y][Model.block_locations[i].x] = BLOCK;
+        -:  612:    }
+        -:  613:
+        -:  614:	//item
+    #####:  615:	for (int i = 0; i < num_item; i++) {
+branch  0 never executed
+branch  1 never executed
+    #####:  616:		int item_id = item_idxToId(i);
+call    0 never executed
+    #####:  617:		if(Model.item_locations[i].x == -1 && Model.item_locations[i].y == -1) continue; //skip removed item
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  618:		map[Model.item_locations[i].y][Model.item_locations[i].x] = item_id;
+        -:  619:    }
+        -:  620:
+    #####:  621:}
+function item_idxToId called 0 returned 0% blocks executed 0%
+    #####:  622:int item_idxToId(int idx){ return ((0-(idx+1))*10); } //0 -> -10
+function item_idToIdx called 0 returned 0% blocks executed 0%
+    #####:  623:int item_idToIdx(int id){ return (((0-id)/10)-1); }//-10 -> 0
+        -:  624:
+        -:  625:
+function score_up called 0 returned 0% blocks executed 0%
+    #####:  626:void score_up(int user_idx){
+        -:  627:	
+    #####:  628:	Model.users[user_idx].score ++;
+    #####:  629:	sprintf(msg_info, "%s got the score!", Model.users[user_idx].name);
+    #####:  630:	fprintf(stderr,"%s got the score!\n", Model.users[user_idx].name);
+call    0 never executed
+    #####:  631:	gtk_label_set_text((GtkLabel*)label_info, msg_info);
+call    0 never executed
+    #####:  632:	sprintf(msg_info, "%s: %d", Model.users[user_idx].name, Model.users[user_idx].score);
+    #####:  633:	gtk_label_set_text((GtkLabel*)label_score[user_idx], msg_info);
+call    0 never executed
+        -:  634:
+    #####:  635:}
+        -:  636:
+function gameover called 0 returned 0% blocks executed 0%
+    #####:  637:void gameover(){
+        -:  638:	
+    #####:  639:	sprintf(msg_info, "GAME OVER!!!");
+    #####:  640:	fprintf(stderr,"GAME OVER\n");
+call    0 never executed
+    #####:  641:	gtk_label_set_text((GtkLabel*)label_info, msg_info);
+call    0 never executed
+        -:  642:
+    #####:  643:	gtk_widget_show_all(window);
+call    0 never executed
+    #####:  644:}
+        -:  645:
+function parseJson called 0 returned 0% blocks executed 0%
+    #####:  646:int parseJson(char * jsonfile) {
+        -:  647:
+        -:  648:    cJSON* root;
+    #####:  649:	root = cJSON_Parse(jsonfile);
+call    0 never executed
+    #####:  650:	if (root == NULL) {
+branch  0 never executed
+branch  1 never executed
+    #####:  651:		printf("JSON parsing error: %s\n", cJSON_GetErrorPtr());
+call    0 never executed
+call    1 never executed
+    #####:  652:        	return 1;
+        -:  653:    	}
+        -:  654:        
+    #####:  655:	cJSON* timeout = cJSON_GetObjectItem(root, "timeout");
+call    0 never executed
+    #####:  656:	Model.timeout = timeout->valueint;
+    #####:  657:	cJSON* max_user = cJSON_GetObjectItem(root, "max_user");
+call    0 never executed
+    #####:  658:	Model.max_user = max_user->valueint;
+        -:  659:
+    #####:  660:	cJSON* map = cJSON_GetObjectItem(root, "map");
+call    0 never executed
+    #####:  661:	cJSON* map_width = cJSON_GetObjectItem(map, "map_width");
+call    0 never executed
+    #####:  662:	Model.map_width = map_width->valueint;	
+    #####:  663:	cJSON* map_height = cJSON_GetObjectItem(map, "map_height");
+call    0 never executed
+    #####:  664:	Model.map_height = map_height->valueint;
+        -:  665:
+    #####:  666:	cJSON* user = cJSON_GetObjectItem(root, "user");
+call    0 never executed
+    #####:  667:	Model.users = (struct user *)malloc(sizeof(struct user) * Model.max_user);
+    #####:  668:	for(int i = 0; i < Model.max_user; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  669:		memset(Model.users[i].name, 0, sizeof(NAME_SIZE));
+    #####:  670:		Model.users[i].score = 0;
+    #####:  671:		cJSON* user_array = cJSON_GetArrayItem(user,i);
+call    0 never executed
+    #####:  672:	    cJSON* base = cJSON_GetObjectItem(user_array,"base"); 
+call    0 never executed
+    #####:  673:		cJSON* base_x = cJSON_GetArrayItem(base, 0);
+call    0 never executed
+    #####:  674:		cJSON* base_y = cJSON_GetArrayItem(base, 1);
+call    0 never executed
+    #####:  675:		cJSON* user_location = cJSON_GetObjectItem(user_array,"location"); 
+call    0 never executed
+    #####:  676:		cJSON* user_x = cJSON_GetArrayItem(user_location, 0);
+call    0 never executed
+    #####:  677:		cJSON* user_y = cJSON_GetArrayItem(user_location, 1);
+call    0 never executed
+    #####:  678:		Model.users[i].user_loc.x = user_x->valueint;
+    #####:  679:		Model.users[i].user_loc.y = user_y->valueint;
+    #####:  680:		Model.users[i].base_loc.x = base_x->valueint;
+    #####:  681:		Model.users[i].base_loc.y = base_y->valueint;
+        -:  682:	#ifdef DEBUG
+    #####:  683:		printf("name: %s\n",Model.users[i].name);
+call    0 never executed
+    #####:  684:		printf("base x: %d\n",Model.users[i].base_loc.x);
+call    0 never executed
+    #####:  685:		printf("base y: %d\n",Model.users[i].base_loc.y);
+call    0 never executed
+        -:  686:	#endif
+        -:  687:	}
+        -:  688:	
+    #####:  689:	cJSON * item = cJSON_GetObjectItem(root, "item_location");
+call    0 never executed
+    #####:  690:	num_item = cJSON_GetArraySize(item);
+call    0 never executed
+    #####:  691:	current_num_item = num_item;
+    #####:  692:	Model.item_locations = (struct location *)malloc(sizeof(struct location) * num_item); 
+    #####:  693:	for(int i = 0; i < num_item; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  694:		cJSON* item_array = cJSON_GetArrayItem(item,i);
+call    0 never executed
+    #####:  695:		cJSON* item_x = cJSON_GetArrayItem(item_array, 0);
+call    0 never executed
+    #####:  696:		cJSON* item_y = cJSON_GetArrayItem(item_array, 1);
+call    0 never executed
+    #####:  697:		Model.item_locations[i].x = item_x->valueint;
+    #####:  698:		Model.item_locations[i].y = item_y->valueint;
+        -:  699:	#ifdef DEBUG
+    #####:  700:		printf("item x: %d\n",Model.item_locations[i].x);
+call    0 never executed
+    #####:  701:		printf("item y: %d\n",Model.item_locations[i].y);
+call    0 never executed
+        -:  702:		#endif
+        -:  703:	}	
+        -:  704:
+    #####:  705:	cJSON * block = cJSON_GetObjectItem(root, "block_location");
+call    0 never executed
+    #####:  706:	num_block = cJSON_GetArraySize(block);
+call    0 never executed
+    #####:  707:	Model.block_locations = (struct location *)malloc(sizeof(struct location) * num_block); 
+    #####:  708:	for(int i = 0; i < num_block; i++){
+branch  0 never executed
+branch  1 never executed
+    #####:  709:		cJSON* block_array = cJSON_GetArrayItem(block,i);
+call    0 never executed
+    #####:  710:		cJSON* block_x = cJSON_GetArrayItem(block_array, 0);
+call    0 never executed
+    #####:  711:		cJSON* block_y = cJSON_GetArrayItem(block_array, 1);
+call    0 never executed
+    #####:  712:		Model.block_locations[i].x = block_x->valueint;
+    #####:  713:		Model.block_locations[i].y = block_y->valueint;
+        -:  714:	#ifdef DEBUG
+    #####:  715:		printf("block x: %d\n",Model.block_locations[i].x);
+call    0 never executed
+    #####:  716:		printf("block y: %d\n",Model.block_locations[i].y);
+call    0 never executed
+        -:  717:	#endif
+        -:  718:	}	
+        -:  719:		
+    #####:  720:	return 0;
+        -:  721:}
+        -:  722:
+function handle_timeout called 0 returned 0% blocks executed 0%
+    #####:  723:void handle_timeout(int signum) {
+        -:  724:    // 이 함수가 호출되면 10초가 경과했음을 의미
+    #####:  725:	int game_over = Model.max_user*4;
+        -:  726:
+    #####:  727:	send_bytes(sock,(void *)&game_over,sizeof(game_over));
+call    0 never executed
+        -:  728:    //gameover 신호 보내기 
+    #####:  729:	gameover();
+call    0 never executed
+    #####:  730:}
+function recv_msg called 0 returned 0% blocks executed 0%
+    #####:  731:void * recv_msg(void * arg)   // read thread main
+        -:  732:{
+    #####:  733:	int sock = *((int*)arg);
+        -:  734:	int recv_cmd;
+        -:  735:
+        -:  736:	//now enter new move 
+        -:  737:	while(1){
+    #####:  738:		if(recv_bytes(sock, (void *)&recv_cmd, sizeof(recv_cmd)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+    #####:  739:			return (void*)-1;
+        -:  740:
+    #####:  741:        fprintf(stderr, "From Server : %d\n", recv_cmd);
+call    0 never executed
+        -:  742:
+    #####:  743:		pthread_mutex_lock(&mutx);
+call    0 never executed
+    #####:  744:		while((rear+1)%queue_size == front)
+branch  0 never executed
+branch  1 never executed
+    #####:  745:			pthread_cond_wait(&cond, &mutx);
+call    0 never executed
+    #####:  746:		rear = (rear + 1) % queue_size;
+    #####:  747:		event_arry[rear] = recv_cmd;
+    #####:  748:		pthread_cond_signal(&cond);
+call    0 never executed
+    #####:  749:  		pthread_mutex_unlock(&mutx);
+call    0 never executed
+        -:  750:	}
+        -:  751:	return NULL;
+        -:  752:}
+        -:  753:
+function recv_bytes called 0 returned 0% blocks executed 0%
+    #####:  754:int recv_bytes(int sock_fd, void * buf, size_t len){
+    #####:  755:    char * p = (char *)buf;
+    #####:  756:    size_t acc = 0;
+        -:  757:
+    #####:  758:    while(acc < len)
+branch  0 never executed
+branch  1 never executed
+        -:  759:    {
+        -:  760:        size_t recved;
+    #####:  761:        recved = recv(sock_fd, p, len - acc, 0);
+call    0 never executed
+    #####:  762:        if(recved  == -1 || recved == 0){
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  763:            return -1;
+        -:  764:        }
+    #####:  765:        p+= recved ;
+    #####:  766:        acc += recved ;
+        -:  767:    }
+    #####:  768:    return 0;
+        -:  769:}
+        -:  770:
+function send_bytes called 0 returned 0% blocks executed 0%
+    #####:  771:int send_bytes(int sock_fd, void * buf, size_t len){
+    #####:  772:    char * p = (char *) buf;
+    #####:  773:    size_t acc = 0;
+        -:  774:
+    #####:  775:    while(acc < len){
+branch  0 never executed
+branch  1 never executed
+        -:  776:        size_t sent;
+    #####:  777:        sent = send(sock_fd, p, len - acc, 0);
+call    0 never executed
+    #####:  778:        if(sent == -1 || sent == 0){
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  779:            return -1;
+        -:  780:        }
+        -:  781:
+    #####:  782:        p+= sent;
+    #####:  783:        acc += sent;
+        -:  784:    }
+    #####:  785:    return 0;
+        -:  786:}
+        -:  787:
+function handle_cmd called 0 returned 0% blocks executed 0%
+    #####:  788:gboolean handle_cmd(gpointer user_data) {
+        -:  789:	int event;
+    #####:  790:    pthread_mutex_lock(&mutx);
+call    0 never executed
+    #####:  791:	if(rear == front)
+branch  0 never executed
+branch  1 never executed
+        -:  792:	{
+    #####:  793:		pthread_mutex_unlock(&mutx);
+call    0 never executed
+    #####:  794:		return TRUE;
+        -:  795:	}
+        -:  796:
+    #####:  797:	front = (front + 1) % queue_size;
+    #####:  798:	event = event_arry[front];
+        -:  799:	
+    #####:  800:	pthread_cond_signal(&cond);
+call    0 never executed
+    #####:  801:  	pthread_mutex_unlock(&mutx);
+call    0 never executed
+        -:  802:	
+    #####:  803:	if(event == Model.max_user*4) 
+branch  0 never executed
+branch  1 never executed
+        -:  804:	{
+    #####:  805:		return FALSE;
+        -:  806:	}
+        -:  807:
+        -:  808:	int movement;
+    #####:  809:	if((movement = check_validation(event)) == 0) fprintf(stderr,"invalid movement!\n");
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+call    3 never executed
+        -:  810:	else{	
+    #####:  811:		move(event, movement);
+call    0 never executed
+    #####:  812:		display_screen();
+call    0 never executed
+    #####:  813:		if( current_num_item <= 0) {
+branch  0 never executed
+branch  1 never executed
+    #####:  814:			gameover();
+call    0 never executed
+        -:  815:		}
+        -:  816:	} 
+        -:  817:
+    #####:  818:    return TRUE;
+        -:  819:}
+        -:  820:
+function cannot_enter called 0 returned 0% blocks executed 0%
+    #####:  821:void cannot_enter(){
+        -:  822:	// sprintf(msg_info, "Cannot enter the game.\n");
+    #####:  823:	fprintf(stderr,"Cannot enter the game.\n");
+call    0 never executed
+    #####:  824:}

@@ -1,4 +1,7 @@
         -:    0:Source:pushpush_server.c
+        -:    0:Graph:pushpush_server.gcno
+        -:    0:Data:-
+        -:    0:Runs:0
         -:    0:Programs:0
         -:    1:#include <stdio.h>
         -:    2:#include <stdlib.h>
@@ -37,58 +40,85 @@
         -:   35:
         -:   36:
         -:   37://loadJson: read datas from json file
+function loadJson called 0 returned 0% blocks executed 0%
     #####:   38:int loadJson() 
         -:   39:{
         -:   40:	char filepath[PATH_LENGTH];
     #####:   41:	fgets(filepath, PATH_LENGTH-1, stdin);
+call    0 never executed
     #####:   42:	filepath[strlen(filepath)-1]=0;
     #####:   43:	FILE *file = fopen(filepath,"r");
+call    0 never executed
     #####:   44:	if(file == NULL)
+branch  0 never executed
+branch  1 never executed
         -:   45:	{
     #####:   46:		fprintf(stderr,"ERROR: open file");
+call    0 never executed
     #####:   47:		return 1;
         -:   48:	}
         -:   49:	struct stat st;
     #####:   50:	if(stat(filepath, &st) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
         -:   51:	{
     #####:   52:  		fprintf(stderr,"ERROR: stat()\n");
+call    0 never executed
     #####:   53:  		return 1;
         -:   54:	}
     #####:   55:	int size = st.st_size;
         -:   56:
     #####:   57:	char* jsonfile = (char*)malloc(size+1);
     #####:   58:	if(jsonfile 	== NULL)
+branch  0 never executed
+branch  1 never executed
         -:   59:	{
     #####:   60:		fprintf(stderr,"ERROR: memory allocation\n");
+call    0 never executed
     #####:   61:		return 1;
         -:   62:	}
         -:   63:
     #####:   64:	int read_size = fread(jsonfile, 1, size, file);
+call    0 never executed
     #####:   65:	if(read_size != size)
+branch  0 never executed
+branch  1 never executed
         -:   66:	{
     #####:   67:		fprintf(stderr, "ERROR: read file\n");
+call    0 never executed
     #####:   68:		return 1;
         -:   69:	}
         -:   70:
     #####:   71:	fclose(file);
+call    0 never executed
     #####:   72:	jsonfile[size] = '\0';
         -:   73:	
     #####:   74:	cJSON* root = cJSON_Parse(jsonfile);
+call    0 never executed
     #####:   75:	if (root == NULL) 
+branch  0 never executed
+branch  1 never executed
         -:   76:	{
     #####:   77:		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
+call    0 never executed
+call    1 never executed
     #####:   78:      	return 1;
         -:   79:	}
         -:   80:
     #####:   81:	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
+call    0 never executed
     #####:   82:	max_user = num_user->valueint;
     #####:   83:	user_name = (char**)malloc(sizeof(char*) * max_user);
     #####:   84:	for(int i=0; i< max_user; i++)
+branch  0 never executed
+branch  1 never executed
         -:   85:	{
     #####:   86:		user_name[i] = (char*)malloc(sizeof(char) * NAME_SIZE);
         -:   87:	}
         -:   88:
     #####:   89:	json_serialize = cJSON_Print(root);
+call    0 never executed
     #####:   90:	json_size = strlen(json_serialize);
         -:   91:	
     #####:   92:	free(root);
@@ -97,14 +127,22 @@
         -:   95:}
         -:   96:
         -:   97://disconnected: check if any user is disconnected, handel clnt_cnt
+function disconnected called 0 returned 0% blocks executed 0%
     #####:   98:void disconnected(int sock)
         -:   99:{
     #####:  100:	pthread_mutex_lock(&mutx);
+call    0 never executed
     #####:  101:	for (int i = 0; i < clnt_cnt; i++)   // remove disconnected client
+branch  0 never executed
+branch  1 never executed
         -:  102:	{
     #####:  103:		if (sock == clnt_socks[i])
+branch  0 never executed
+branch  1 never executed
         -:  104:		{
     #####:  105:			while (i < clnt_cnt-1)
+branch  0 never executed
+branch  1 never executed
         -:  106:			{
     #####:  107:				clnt_socks[i] = clnt_socks[i+1];
     #####:  108:				i++;
@@ -115,30 +153,43 @@
     #####:  113:	clnt_cnt--;
         -:  114:
     #####:  115:	if(clnt_cnt == 0)
+branch  0 never executed
+branch  1 never executed
         -:  116:	{
     #####:  117:		game_start = 0;
     #####:  118:		usr_cnt = 0;
         -:  119:	}
     #####:  120:	pthread_mutex_unlock(&mutx);
+call    0 never executed
     #####:  121:	close(sock);
+call    0 never executed
     #####:  122:}
         -:  123:
         -:  124://write_byte: write datas to socket, guarantee that all the byte is sent. 
+function write_byte called 0 returned 0% blocks executed 0%
     #####:  125:int write_byte(int sock, void * buf, int size)
         -:  126:{
         -:  127:
     #####:  128:	int write_size = 0;
     #####:  129:	int str_len = 0;
     #####:  130:	while(write_size < size)
+branch  0 never executed
+branch  1 never executed
         -:  131:	{
     #####:  132:		str_len = write(sock, buf + write_size, size - write_size);
+call    0 never executed
     #####:  133:		if( str_len == 0)
+branch  0 never executed
+branch  1 never executed
         -:  134:		{
     #####:  135:			return 0;
         -:  136:		}
     #####:  137:		if( str_len == -1)
+branch  0 never executed
+branch  1 never executed
         -:  138:		{
     #####:  139:			disconnected(sock);
+call    0 never executed
         -:  140:		}
     #####:  141:		write_size += str_len;
         -:  142:	}
@@ -146,16 +197,23 @@
         -:  144:}
         -:  145:
         -:  146://read_byte: read datas from socket, guarantee that all byte is accepted.
+function read_byte called 0 returned 0% blocks executed 0%
     #####:  147:int read_byte(int sock, void * buf, int size)
         -:  148:{
     #####:  149:	int read_size = 0;
     #####:  150:	int str_len = 0;
     #####:  151:	while(read_size < size)
+branch  0 never executed
+branch  1 never executed
         -:  152:	{
     #####:  153:		str_len = read(sock, buf + read_size, size - read_size);
+call    0 never executed
     #####:  154:		if( str_len == 0)
+branch  0 never executed
+branch  1 never executed
         -:  155:		{
     #####:  156:			disconnected(sock);
+call    0 never executed
     #####:  157:			return 0;
         -:  158:		}
         -:  159:		if( str_len == -1)
@@ -168,17 +226,24 @@
         -:  166:}
         -:  167:
         -:  168://send_msg_all: send msg to all connected users
+function send_msg_all called 0 returned 0% blocks executed 0%
     #####:  169:void send_msg_all(void * event, int len)
         -:  170:{
     #####:  171:	pthread_mutex_lock(&mutx);
+call    0 never executed
     #####:  172:	for (int i = 0; i < clnt_cnt; i++)
+branch  0 never executed
+branch  1 never executed
         -:  173:	{
     #####:  174:		write_byte(clnt_socks[i], event, len);
+call    0 never executed
         -:  175:	}
     #####:  176:	pthread_mutex_unlock(&mutx);
+call    0 never executed
     #####:  177:}
         -:  178:
         -:  179://handle_clnt: thread function; handle one client per one thread. send json datas and recv commands, broadcast it to all... 
+function handle_clnt called 0 returned 0% blocks executed 0%
     #####:  180:void *handle_clnt(void * arg)
         -:  181:{
     #####:  182:	int clnt_sock = *((int*)arg);
@@ -188,45 +253,72 @@
         -:  186:
         -:  187:	//recive name size
     #####:  188:	str_len = read_byte(clnt_sock, (void *)&name_size, sizeof(int));
+call    0 never executed
         -:  189:	//reciev name, send id
     #####:  190:	pthread_mutex_lock(&mutx);
+call    0 never executed
     #####:  191:	for (int i = 0; i < clnt_cnt; i++) 
+branch  0 never executed
+branch  1 never executed
         -:  192:	{
     #####:  193:		if (clnt_sock == clnt_socks[i])
+branch  0 never executed
+branch  1 never executed
         -:  194:		{
     #####:  195:			read_byte(clnt_sock, (void *)user_name[i], name_size);
+call    0 never executed
     #####:  196:			printf("%s is enter\n",user_name[i]);
+call    0 never executed
     #####:  197:			write_byte(clnt_sock, (void *)&i, sizeof(int));
+call    0 never executed
     #####:  198:			usr_cnt++;
     #####:  199:			break;
         -:  200:		}
         -:  201:	}
     #####:  202:	pthread_mutex_unlock(&mutx);
+call    0 never executed
         -:  203:
         -:  204:	//send json
     #####:  205:	write_byte(clnt_sock, (void *)&json_size, sizeof(int));
+call    0 never executed
     #####:  206:	write_byte(clnt_sock, json_serialize, json_size);
+call    0 never executed
         -:  207:
     #####:  208:	while(usr_cnt < max_user); //wait untill all user is connected
+branch  0 never executed
+branch  1 never executed
         -:  209:	
         -:  210:	//send connected user information
     #####:  211:	for(int i=0; i< max_user; i++)
+branch  0 never executed
+branch  1 never executed
         -:  212:	{
     #####:  213:		int len = strlen(user_name[i]);
     #####:  214:		write_byte(clnt_sock, &len,sizeof(int));
+call    0 never executed
     #####:  215:		write_byte(clnt_sock,user_name[i], len);
+call    0 never executed
         -:  216:	}
         -:  217:
         -:  218:	//receive and echo command
     #####:  219:	while (read_byte(clnt_sock, (void *)&event, sizeof(int))) 
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
         -:  220:	{
     #####:  221:		printf("move: %d\n", event);
+call    0 never executed
     #####:  222:		send_msg_all((void *)&event, sizeof(int));
+call    0 never executed
         -:  223:		//detect end flag
     #####:  224:		if(event == max_user*4)
+branch  0 never executed
+branch  1 never executed
         -:  225:		{
     #####:  226:			printf("end game!\n");
+call    0 never executed
     #####:  227:			disconnected(clnt_sock);
+call    0 never executed
         -:  228:		}
         -:  229:	}
         -:  230:	
@@ -234,14 +326,18 @@
         -:  232:}
         -:  233:
         -:  234://error_handling: print error message
+function error_handling called 0 returned 0% blocks executed 0%
     #####:  235:void error_handling(char * msg)
         -:  236:{
     #####:  237:	fputs(msg, stderr);
+call    0 never executed
     #####:  238:	fputc('\n', stderr);
+call    0 never executed
     #####:  239:	exit(1);
         -:  240:}
         -:  241:
         -:  242://this is MAIN function
+function main called 0 returned 0% blocks executed 0%
     #####:  243:int main(int argc, char *argv[])
         -:  244:{
         -:  245:	int serv_sock, clnt_sock;
@@ -249,15 +345,25 @@
         -:  247:	unsigned int clnt_adr_sz;
         -:  248:	pthread_t t_id;
     #####:  249:	if (argc != 2) {
+branch  0 never executed
+branch  1 never executed
     #####:  250:		printf("Usage : %s <port>\n", argv[0]);
+call    0 never executed
     #####:  251:		exit(1);
+call    0 never executed
         -:  252:	}
         -:  253:	
     #####:  254:	if(loadJson()) //parsing error return 1.
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
     #####:  255:		exit(1);
+call    0 never executed
         -:  256:
     #####:  257:	pthread_mutex_init(&mutx, NULL);
+call    0 never executed
     #####:  258:	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+call    0 never executed
         -:  259:
     #####:  260:	memset(&serv_adr, 0, sizeof(serv_adr));
     #####:  261:	serv_adr.sin_family = AF_INET; 
@@ -265,31 +371,50 @@
     #####:  263:	serv_adr.sin_port = htons(atoi(argv[1]));
         -:  264:	
     #####:  265:	if (bind(serv_sock, (struct sockaddr*) &serv_adr, sizeof(serv_adr)) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
     #####:  266:		error_handling("bind() error");
+call    0 never executed
         -:  267:	
     #####:  268:	if (listen(serv_sock, 5) == -1)
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
     #####:  269:		error_handling("listen() error");
+call    0 never executed
         -:  270:	
         -:  271:	while (1)
         -:  272:	{
     #####:  273:		clnt_adr_sz = sizeof(clnt_adr);
     #####:  274:		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
+call    0 never executed
         -:  275:		
     #####:  276:		write_byte(clnt_sock, (void *)&game_start, sizeof(int));
+call    0 never executed
     #####:  277:		if(game_start == 1) //게임 중 플래그 start 
+branch  0 never executed
+branch  1 never executed
         -:  278:		{
     #####:  279:			close(clnt_sock);
+call    0 never executed
     #####:  280:			continue;
         -:  281:		}
         -:  282:
     #####:  283:		pthread_mutex_lock(&mutx); 
+call    0 never executed
     #####:  284:		clnt_socks[clnt_cnt++] = clnt_sock;
     #####:  285:		pthread_mutex_unlock(&mutx);
+call    0 never executed
         -:  286:		
     #####:  287:		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
+call    0 never executed
     #####:  288:		pthread_detach(t_id);
+call    0 never executed
         -:  289:
     #####:  290:		if(clnt_cnt == max_user)
+branch  0 never executed
+branch  1 never executed
     #####:  291:			game_start = 1;
         -:  292:		
         -:  293:	}
