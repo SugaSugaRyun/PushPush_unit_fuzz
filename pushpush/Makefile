@@ -42,4 +42,4 @@ ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	rm server client cc cs
+	rm -f server client cc cs
