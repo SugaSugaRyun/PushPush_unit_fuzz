@@ -1,0 +1,300 @@
+        -:    0:Source:pushpush_server.c
+        -:    0:Programs:0
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <unistd.h>
+        -:    4:#include <string.h>
+        -:    5:#include <arpa/inet.h>
+        -:    6:#include <sys/socket.h>
+        -:    7:#include <sys/stat.h>
+        -:    8:#include <netinet/in.h>
+        -:    9:#include <pthread.h>
+        -:   10:#include "../cJSON.h"
+        -:   11:
+        -:   12:#define BUF_SIZE 256
+        -:   13:#define MAX_USER 4
+        -:   14:#define NAME_SIZE 16
+        -:   15:#define PATH_LENGTH 256
+        -:   16:
+        -:   17:int usr_cnt = 0; //num of connected user
+        -:   18:int game_start = 0;
+        -:   19:int max_user;
+        -:   20:char ** user_name;
+        -:   21:int json_size;
+        -:   22:char * json_serialize;
+        -:   23:
+        -:   24:int clnt_cnt = 0;
+        -:   25:int clnt_socks[MAX_USER];
+        -:   26:pthread_mutex_t mutx;
+        -:   27:
+        -:   28:int loadJson();
+        -:   29:void disconnected(int sock);
+        -:   30:int write_byte(int sock, void * buf, int size);
+        -:   31:int read_byte(int sock, void * buf, int size);
+        -:   32:void send_msg_all(void * event, int len);
+        -:   33:void *handle_clnt(void * arg);
+        -:   34:void error_handling(char * msg);
+        -:   35:
+        -:   36:
+        -:   37://loadJson: read datas from json file
+    #####:   38:int loadJson() 
+        -:   39:{
+        -:   40:	char filepath[PATH_LENGTH];
+    #####:   41:	fgets(filepath, PATH_LENGTH-1, stdin);
+    #####:   42:	filepath[strlen(filepath)-1]=0;
+    #####:   43:	FILE *file = fopen(filepath,"r");
+    #####:   44:	if(file == NULL)
+        -:   45:	{
+    #####:   46:		fprintf(stderr,"ERROR: open file");
+    #####:   47:		return 1;
+        -:   48:	}
+        -:   49:	struct stat st;
+    #####:   50:	if(stat(filepath, &st) == -1)
+        -:   51:	{
+    #####:   52:  		fprintf(stderr,"ERROR: stat()\n");
+    #####:   53:  		return 1;
+        -:   54:	}
+    #####:   55:	int size = st.st_size;
+        -:   56:
+    #####:   57:	char* jsonfile = (char*)malloc(size+1);
+    #####:   58:	if(jsonfile 	== NULL)
+        -:   59:	{
+    #####:   60:		fprintf(stderr,"ERROR: memory allocation\n");
+    #####:   61:		return 1;
+        -:   62:	}
+        -:   63:
+    #####:   64:	int read_size = fread(jsonfile, 1, size, file);
+    #####:   65:	if(read_size != size)
+        -:   66:	{
+    #####:   67:		fprintf(stderr, "ERROR: read file\n");
+    #####:   68:		return 1;
+        -:   69:	}
+        -:   70:
+    #####:   71:	fclose(file);
+    #####:   72:	jsonfile[size] = '\0';
+        -:   73:	
+    #####:   74:	cJSON* root = cJSON_Parse(jsonfile);
+    #####:   75:	if (root == NULL) 
+        -:   76:	{
+    #####:   77:		printf("JSON 파싱 오류: %s\n", cJSON_GetErrorPtr());
+    #####:   78:      	return 1;
+        -:   79:	}
+        -:   80:
+    #####:   81:	cJSON* num_user = cJSON_GetObjectItem(root, "max_user");
+    #####:   82:	max_user = num_user->valueint;
+    #####:   83:	user_name = (char**)malloc(sizeof(char*) * max_user);
+    #####:   84:	for(int i=0; i< max_user; i++)
+        -:   85:	{
+    #####:   86:		user_name[i] = (char*)malloc(sizeof(char) * NAME_SIZE);
+        -:   87:	}
+        -:   88:
+    #####:   89:	json_serialize = cJSON_Print(root);
+    #####:   90:	json_size = strlen(json_serialize);
+        -:   91:	
+    #####:   92:	free(root);
+    #####:   93:	free(jsonfile);
+    #####:   94:	return 0;
+        -:   95:}
+        -:   96:
+        -:   97://disconnected: check if any user is disconnected, handel clnt_cnt
+    #####:   98:void disconnected(int sock)
+        -:   99:{
+    #####:  100:	pthread_mutex_lock(&mutx);
+    #####:  101:	for (int i = 0; i < clnt_cnt; i++)   // remove disconnected client
+        -:  102:	{
+    #####:  103:		if (sock == clnt_socks[i])
+        -:  104:		{
+    #####:  105:			while (i < clnt_cnt-1)
+        -:  106:			{
+    #####:  107:				clnt_socks[i] = clnt_socks[i+1];
+    #####:  108:				i++;
+        -:  109:			}
+    #####:  110:			break;
+        -:  111:		}
+        -:  112:	}
+    #####:  113:	clnt_cnt--;
+        -:  114:
+    #####:  115:	if(clnt_cnt == 0)
+        -:  116:	{
+    #####:  117:		game_start = 0;
+    #####:  118:		usr_cnt = 0;
+        -:  119:	}
+    #####:  120:	pthread_mutex_unlock(&mutx);
+    #####:  121:	close(sock);
+    #####:  122:}
+        -:  123:
+        -:  124://write_byte: write datas to socket, guarantee that all the byte is sent. 
+    #####:  125:int write_byte(int sock, void * buf, int size)
+        -:  126:{
+        -:  127:
+    #####:  128:	int write_size = 0;
+    #####:  129:	int str_len = 0;
+    #####:  130:	while(write_size < size)
+        -:  131:	{
+    #####:  132:		str_len = write(sock, buf + write_size, size - write_size);
+    #####:  133:		if( str_len == 0)
+        -:  134:		{
+    #####:  135:			return 0;
+        -:  136:		}
+    #####:  137:		if( str_len == -1)
+        -:  138:		{
+    #####:  139:			disconnected(sock);
+        -:  140:		}
+    #####:  141:		write_size += str_len;
+        -:  142:	}
+    #####:  143:	return write_size;
+        -:  144:}
+        -:  145:
+        -:  146://read_byte: read datas from socket, guarantee that all byte is accepted.
+    #####:  147:int read_byte(int sock, void * buf, int size)
+        -:  148:{
+    #####:  149:	int read_size = 0;
+    #####:  150:	int str_len = 0;
+    #####:  151:	while(read_size < size)
+        -:  152:	{
+    #####:  153:		str_len = read(sock, buf + read_size, size - read_size);
+    #####:  154:		if( str_len == 0)
+        -:  155:		{
+    #####:  156:			disconnected(sock);
+    #####:  157:			return 0;
+        -:  158:		}
+        -:  159:		if( str_len == -1)
+        -:  160:		{
+        -:  161:
+        -:  162:		}
+    #####:  163:		read_size += str_len;
+        -:  164:	}
+    #####:  165:	return read_size;
+        -:  166:}
+        -:  167:
+        -:  168://send_msg_all: send msg to all connected users
+    #####:  169:void send_msg_all(void * event, int len)
+        -:  170:{
+    #####:  171:	pthread_mutex_lock(&mutx);
+    #####:  172:	for (int i = 0; i < clnt_cnt; i++)
+        -:  173:	{
+    #####:  174:		write_byte(clnt_socks[i], event, len);
+        -:  175:	}
+    #####:  176:	pthread_mutex_unlock(&mutx);
+    #####:  177:}
+        -:  178:
+        -:  179://handle_clnt: thread function; handle one client per one thread. send json datas and recv commands, broadcast it to all... 
+    #####:  180:void *handle_clnt(void * arg)
+        -:  181:{
+    #####:  182:	int clnt_sock = *((int*)arg);
+    #####:  183:	int str_len = 0;
+        -:  184:	int event;
+    #####:  185:	int name_size = 0;
+        -:  186:
+        -:  187:	//recive name size
+    #####:  188:	str_len = read_byte(clnt_sock, (void *)&name_size, sizeof(int));
+        -:  189:	//reciev name, send id
+    #####:  190:	pthread_mutex_lock(&mutx);
+    #####:  191:	for (int i = 0; i < clnt_cnt; i++) 
+        -:  192:	{
+    #####:  193:		if (clnt_sock == clnt_socks[i])
+        -:  194:		{
+    #####:  195:			read_byte(clnt_sock, (void *)user_name[i], name_size);
+    #####:  196:			printf("%s is enter\n",user_name[i]);
+    #####:  197:			write_byte(clnt_sock, (void *)&i, sizeof(int));
+    #####:  198:			usr_cnt++;
+    #####:  199:			break;
+        -:  200:		}
+        -:  201:	}
+    #####:  202:	pthread_mutex_unlock(&mutx);
+        -:  203:
+        -:  204:	//send json
+    #####:  205:	write_byte(clnt_sock, (void *)&json_size, sizeof(int));
+    #####:  206:	write_byte(clnt_sock, json_serialize, json_size);
+        -:  207:
+    #####:  208:	while(usr_cnt < max_user); //wait untill all user is connected
+        -:  209:	
+        -:  210:	//send connected user information
+    #####:  211:	for(int i=0; i< max_user; i++)
+        -:  212:	{
+    #####:  213:		int len = strlen(user_name[i]);
+    #####:  214:		write_byte(clnt_sock, &len,sizeof(int));
+    #####:  215:		write_byte(clnt_sock,user_name[i], len);
+        -:  216:	}
+        -:  217:
+        -:  218:	//receive and echo command
+    #####:  219:	while (read_byte(clnt_sock, (void *)&event, sizeof(int))) 
+        -:  220:	{
+    #####:  221:		printf("move: %d\n", event);
+    #####:  222:		send_msg_all((void *)&event, sizeof(int));
+        -:  223:		//detect end flag
+    #####:  224:		if(event == max_user*4)
+        -:  225:		{
+    #####:  226:			printf("end game!\n");
+    #####:  227:			disconnected(clnt_sock);
+        -:  228:		}
+        -:  229:	}
+        -:  230:	
+    #####:  231:	return NULL;
+        -:  232:}
+        -:  233:
+        -:  234://error_handling: print error message
+    #####:  235:void error_handling(char * msg)
+        -:  236:{
+    #####:  237:	fputs(msg, stderr);
+    #####:  238:	fputc('\n', stderr);
+    #####:  239:	exit(1);
+        -:  240:}
+        -:  241:
+        -:  242://this is MAIN function
+    #####:  243:int main(int argc, char *argv[])
+        -:  244:{
+        -:  245:	int serv_sock, clnt_sock;
+        -:  246:	struct sockaddr_in serv_adr, clnt_adr;
+        -:  247:	unsigned int clnt_adr_sz;
+        -:  248:	pthread_t t_id;
+    #####:  249:	if (argc != 2) {
+    #####:  250:		printf("Usage : %s <port>\n", argv[0]);
+    #####:  251:		exit(1);
+        -:  252:	}
+        -:  253:	
+    #####:  254:	if(loadJson()) //parsing error return 1.
+    #####:  255:		exit(1);
+        -:  256:
+    #####:  257:	pthread_mutex_init(&mutx, NULL);
+    #####:  258:	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+        -:  259:
+    #####:  260:	memset(&serv_adr, 0, sizeof(serv_adr));
+    #####:  261:	serv_adr.sin_family = AF_INET; 
+    #####:  262:	serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+    #####:  263:	serv_adr.sin_port = htons(atoi(argv[1]));
+        -:  264:	
+    #####:  265:	if (bind(serv_sock, (struct sockaddr*) &serv_adr, sizeof(serv_adr)) == -1)
+    #####:  266:		error_handling("bind() error");
+        -:  267:	
+    #####:  268:	if (listen(serv_sock, 5) == -1)
+    #####:  269:		error_handling("listen() error");
+        -:  270:	
+        -:  271:	while (1)
+        -:  272:	{
+    #####:  273:		clnt_adr_sz = sizeof(clnt_adr);
+    #####:  274:		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
+        -:  275:		
+    #####:  276:		write_byte(clnt_sock, (void *)&game_start, sizeof(int));
+    #####:  277:		if(game_start == 1) //게임 중 플래그 start 
+        -:  278:		{
+    #####:  279:			close(clnt_sock);
+    #####:  280:			continue;
+        -:  281:		}
+        -:  282:
+    #####:  283:		pthread_mutex_lock(&mutx); 
+    #####:  284:		clnt_socks[clnt_cnt++] = clnt_sock;
+    #####:  285:		pthread_mutex_unlock(&mutx);
+        -:  286:		
+    #####:  287:		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
+    #####:  288:		pthread_detach(t_id);
+        -:  289:
+    #####:  290:		if(clnt_cnt == max_user)
+    #####:  291:			game_start = 1;
+        -:  292:		
+        -:  293:	}
+        -:  294:	free(json_serialize);
+        -:  295:	close(serv_sock);
+        -:  296:	return 0;
+        -:  297:}
+        -:  298:	

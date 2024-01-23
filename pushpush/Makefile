@@ -23,10 +23,15 @@ rc:
 cs: pushpush_server.c $(cJSON_path) #coverage server
 	gcc $(GCOV) -o $@ $^ -pthread
 rcs:
-	echo $(JSON) | ./server $(PORT)
+	echo $(JSON) | ./cs $(PORT)
 cc: pushpush_client.c $(cJSON_path) #coverage client
 	gcc $(GCOV) -o $@ $^ $(LIBS) -DDEBUG
 rcc:
-	./client $(IP) $(PORT)
+	./cc $(IP) $(PORT)
+
+scov:
+	gcov -b -c -f 
+ccov:
+
 clean:
 	rm server client cc cs
