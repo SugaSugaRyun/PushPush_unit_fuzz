@@ -1,10 +1,11 @@
 #include <stdio.h>
-#include <stdib.h>
-
+#include <stdlib.h>
+#include <fcntl.h>
 
 int clnt_cnt;
 int clnt_socks[5];
 int max_usr = 4;
+char user_name[5][20];
 
 //handle_clnt: thread function; handle one client per one thread. send json datas and recv commands, broadcast it to all... 
 void *handle_clnt(void * arg)
@@ -17,6 +18,7 @@ void *handle_clnt(void * arg)
 	//recive name size
 	//str_len = read_byte(clnt_sock, (void *)&name_size, sizeof(int));
 	str_len = read(clnt_sock, (void *)&name_size, sizeof(int));
+
 	//reciev name, send id
 //	pthread_mutex_lock(&mutx);
 	printf("function call: pthread_mutex_lock\n");
@@ -33,6 +35,7 @@ void *handle_clnt(void * arg)
 		}
 	}
 
+/*
 //	pthread_mutex_unlock(&mutx);
 	printf("function call: pthread_mutex_unlock\n");
 
@@ -66,14 +69,29 @@ void *handle_clnt(void * arg)
 			disconnected(clnt_sock);
 		}
 	}
-	
+*/	
 	return NULL;
 }
 
+
 int main(void){
 
-	int fd = open("file/handle_client_input"', O_RDONLY);
+	for(int i = 0; i < 5; i++){
+		char filename[20];
+		sprintf(filename, "file/test%d.txt", i);
+		sprintf(user_name[i], "user%d", i);
+		if((clnt_socks[i] = open(filename, O_WRONLY|O_CREAT, 0666)) < 0) perror("open");
+		printf("%d ", clnt_socks[i]);
+	}
 
+	int sock;
+	printf("select target socket: ");
+	scanf("%d", &sock);
+	handle_clnt((void*)&sock);
 
+	printf("done: handle_clnt\n");
+	
 
 }
+
+

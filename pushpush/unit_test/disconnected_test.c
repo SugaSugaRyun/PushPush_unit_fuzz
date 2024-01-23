@@ -33,8 +33,13 @@ void disconnected(int sock){
 int main(){
 	
 	for(int i = 0; i < clnt_cnt; i++) printf("%d ", clnt_socks[i]);
-	printf("remove %d...\n", 10);
-	disconnected(10);
+	printf("\nenter sock: ");
+	int sock;
+	scanf("%d", &sock);
+	
+	
+	printf("remove %d...\n", sock);
+	disconnected(sock);
 	for(int i = 0; i < clnt_cnt; i++) printf("%d ", clnt_socks[i]);
 	printf("\n");
 
