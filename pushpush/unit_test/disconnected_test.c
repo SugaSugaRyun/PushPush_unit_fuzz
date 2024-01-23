@@ -5,7 +5,7 @@
 int clnt_socks[5] = {1, 10, 15, 8, 2};
 int clnt_cnt = 5;
 
-//disconnected: check if any user is disconnected, handel clnt_cnt
+//disconnected: check if any user is disconnected, handel clnt_cnt $$$$
 void disconnected(int sock){
 //	pthread_mutex_lock(&mutx);
 
