@@ -8,7 +8,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include "../cJSON.h"
+#include "../../cJSON.h"
 
 #define BUF_SIZE 256
 #define MAX_USER 4
