@@ -15,7 +15,7 @@
 #define NAME_SIZE 16
 #define PATH_LENGTH 256
 
-int usr_cnt = 0; //num of connected user
+int usr_cnt = 0; //num of connected user aaaa
 int game_start = 0;
 int max_user;
 char ** user_name;
