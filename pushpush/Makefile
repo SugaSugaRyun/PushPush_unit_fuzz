@@ -1,3 +1,4 @@
+CC = clang
 JSON = "../game_data/map2.json"
 IP = "127.0.0.1"
 PORT = "9999"
@@ -12,9 +13,9 @@ compile: server client
 
 
 server: $(SERVER).c $(cJSON_path)
-	gcc -o $@  $^  -pthread
+	$(CC) -o $@  $^  -pthread
 client: $(CLIENT).c $(cJSON_path)
-	gcc -o $@ $^  $(LIBS) -DDEBUG
+	$(CC) -o $@ $^  $(LIBS) -DDEBUG
 
 #run normally
 rs:
@@ -25,9 +26,9 @@ rc:
 
 cov: cc cs
 cs: $(SERVER).c $(cJSON_path) #coverage server
-	gcc $(GCOV) -o $@ $^ -pthread
+	$(CC) $(GCOV) -o $@ $^ -pthread
 cc: $(CLIENT).c $(cJSON_path) #coverage client
-	gcc $(GCOV) -o $@ $^ $(LIBS) -DDEBUG
+	$(CC) $(GCOV) -o $@ $^ $(LIBS) -DDEBUG
 
 #run with coverage
 rcc:
@@ -42,4 +43,4 @@ ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	rm -f server client cc cs
+	rm -f server client cc cs *.gcno *.gcda *.gcov
