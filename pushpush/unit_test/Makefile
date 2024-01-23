@@ -7,11 +7,17 @@ endif
 CC = clang
 cJSON_path = ../../cJSON.c
 
-all: loadJson_test
+files = loadJson_test readbyte_test writebyte_test
+all: $(files)
 
+readbyte_test: readbyte_test.c
+	$(CC) $(CVG) $^ -o $@
+
+writebyte_test: writebyte_test.c
+	$(CC) $(CVG) $^ -o $@
 
 loadJson_test: loadJson_test.c
 	$(CC) $(CVG) $^ $(cJSON_path) -o $@
 
 clean:
-	rm loadJson_test *.gcno *.gcda *.gcov
+	rm $(files) *.gcno *.gcda *.gcov
