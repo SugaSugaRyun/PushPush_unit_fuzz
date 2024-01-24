@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include "../cJSON.h"
 #include <signal.h>
 
 #define BUF_SIZE 256
