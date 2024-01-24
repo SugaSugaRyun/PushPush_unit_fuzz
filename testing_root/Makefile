@@ -49,4 +49,4 @@ ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	rm -f *.out *.gcno *.gcda *.gcov
+	rm -f *.out *.gcno *.gcda *.gcov *.o
