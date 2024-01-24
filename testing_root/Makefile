@@ -35,6 +35,7 @@ rc:
 test: mkobj run
 
 mkobj: $(SERVER).c $(MAIN_TARGET)
+	$(CC) -c -o $(cJSON_object) $(cJSON_path)
 	$(CC) -c -o $(SERVER).o $(SERVER).c -I ../ -pthread -DTEST
 	$(CC) -o $(MAIN_TARGET).out $(SERVER).o $(cJSON_object) $(MAIN_TARGET) -pthread -DTEST
 
@@ -49,4 +50,8 @@ ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	rm -f *.out *.gcno *.gcda *.gcov *.o
+find . 	-name "*.out" -o 
+		-name "*.gcno" -o 
+		-name "*.gcda" -o 
+		-name "*.gcov" -o 
+		-name "*.o" -exec rm -f {} \;
