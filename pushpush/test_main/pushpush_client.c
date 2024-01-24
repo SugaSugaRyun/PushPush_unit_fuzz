@@ -9,7 +9,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include "../cJSON.h"
+#include "../../cJSON.h"
 
 #define NAME_SIZE 16
 #define queue_size 20
