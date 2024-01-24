@@ -1,46 +1,51 @@
+ifdef coverage
+	GCOV = -O0 -fprofile-arcs -ftest-coverage
+else
+	GCOV =
+endif
+
 CC = clang
 JSON = "../game_data/map2.json"
 IP = "127.0.0.1"
 PORT = "9999"
 SERVER = pushpush_server
 CLIENT = pushpush_client
-GCOV = -O0 -fprofile-arcs -ftest-coverage
 LIBS = `pkg-config --libs --cflags gtk+-2.0`
 cJSON_path = ../cJSON.c
 .PHONY : rcs rcc
 
 compile: server client
 
-
+#origin version compile...
 server: $(SERVER).c $(cJSON_path)
-	$(CC) -o $@  $^  -pthread
+	$(CC) $(GCOV) -o $@.out  $^  -pthread
 client: $(CLIENT).c $(cJSON_path)
-	$(CC) -o $@ $^  $(LIBS) 
+	$(CC) $(GCOV) -o $@.out $^  $(LIBS) 
 
 #run normally
 rs:
-	echo $(JSON) | ./server $(PORT)
+	echo $(JSON) | ./server.out $(PORT)
 rc:
-	./client $(IP) $(PORT)
+	./client.out $(IP) $(PORT)
+
+#TODO test
 
 
-cov: cc cs
-cs: $(SERVER).c $(cJSON_path) #coverage server
-	$(CC) $(GCOV) -o $@ $^ -pthread
-cc: $(CLIENT).c $(cJSON_path) #coverage client
-	$(CC) $(GCOV) -o $@ $^ $(LIBS) -DDEBUG
+test: mkobj run
 
-#run with coverage
-rcc:
-	./cc $(IP) $(PORT)
-rcs:
-	echo $(JSON) | ./cs $(PORT)
+mkobj: $(SERVER).c $(MAIN_TARGET)
+	$(CC) -c -o $(SERVER).o $(SERVER).c -pthread -DTEST
+	$(CC) -c -o $(MAIN_TARGET).o $(MAIN_TARGET) -pthread -DTEST
 
+run: $(SERVER).o $(MAIN_TARGET).o
+	$(CC) $(GCOV) -o $@.out $^
+	
 
+#check coverage
 scov:
 	gcov -b -c -f $(SERVER).gcno
 ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	rm -f server client cc cs *.gcno *.gcda *.gcov
+	rm -f *.out *.gcno *.gcda *.gcov
