@@ -50,7 +50,8 @@ ccov:
 	gcov -b -c -f $(CLIENT).gcno
 
 clean:
-	find . 	-name "*.out" -o -name "*.gcno" -o 
-		-name "*.gcda" -o 
-		-name "*.gcov" -o 
-		-name "*.o" -exec rm -f {} \;
+	find . -name "*.out" -exec rm -f {} \;
+	find . -name "*.gcno" -exec rm -f {} \;
+	find . -name "*.gcda" -exec rm -f {} \;
+	find . -name "*.gcov" -exec rm -f {} \;
+	find . -name "*.o" -exec rm -f {} \;
