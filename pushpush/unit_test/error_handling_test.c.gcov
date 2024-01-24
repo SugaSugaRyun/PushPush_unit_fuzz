@@ -1,0 +1,26 @@
+        -:    0:Source:error_handling_test.c
+        -:    0:Graph:error_handling_test.gcno
+        -:    0:Data:error_handling_test.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:
+        -:    4:
+        -:    5://error_handling: print error message
+function error_handling called 1 returned 100% blocks executed 100%
+        1:    6:void error_handling(char * msg)
+        -:    7:{
+        1:    8:	fputs(msg, stderr);
+        1:    9:	fputc('\n', stderr);
+        1:   10:	exit(1);
+        -:   11:}
+        -:   12:
+function main called 1 returned 100% blocks executed 100%
+        1:   13:int main(void){
+        -:   14:	
+        -:   15:	char buf[256];
+        1:   16:	fgets(buf, 256, stdin);
+        1:   17:	error_handling(buf);
+        -:   18:
+        1:   19:}

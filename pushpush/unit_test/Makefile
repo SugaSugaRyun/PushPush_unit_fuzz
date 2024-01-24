@@ -4,6 +4,8 @@ else
 	CVG = 
 endif
 
+target=
+
 CC = clang
 cJSON_path = ../../cJSON.c
 executable = .out
@@ -28,6 +30,10 @@ send_msg_all_test: send_msg_all_test.c
 
 error_handling_test: error_handling_test.c
 	$(CC) $(CVG) $^ -o $@$(executable)
+
+cov:
+	gcov -b -c $(target).gcno
+
 
 clean:
 	rm -f *.out *.gcno *.gcda *.gcov
