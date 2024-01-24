@@ -728,6 +728,7 @@ void handle_timeout(int signum) {
     //gameover 신호 보내기 
 	gameover();
 }
+
 void * recv_msg(void * arg)   // read thread main
 {
 	int sock = *((int*)arg);

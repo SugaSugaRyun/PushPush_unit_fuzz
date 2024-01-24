@@ -26,19 +26,19 @@ int clnt_cnt = 0;
 int clnt_socks[MAX_USER];
 pthread_mutex_t mutx;
 
-int loadJson() 
+int loadJson(char* path) 
 {
-	char filepath[PATH_LENGTH];
-	fgets(filepath, PATH_LENGTH-1, stdin);
-	filepath[strlen(filepath)-1]=0;
-	FILE *file = fopen(filepath,"r");
+	// char filepath[PATH_LENGTH];
+	// fgets(filepath, PATH_LENGTH-1, stdin);
+	// filepath[strlen(filepath)-1]=0;
+	FILE *file = fopen(path,"r");
 	if(file == NULL)
 	{
 		fprintf(stderr,"ERROR: open file");
 		return 1;
 	}
 	struct stat st;
-	if(stat(filepath, &st) == -1)
+	if(stat(path, &st) == -1)
 	{
   		fprintf(stderr,"ERROR: stat()\n");
   		return 1;
@@ -85,9 +85,9 @@ int loadJson()
 	return 0;
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
-    loadJson();
+    loadJson(argv[1]);
 
     return 0;
 }
