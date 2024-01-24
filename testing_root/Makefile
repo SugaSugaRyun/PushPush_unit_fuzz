@@ -12,6 +12,7 @@ SERVER = pushpush_server
 CLIENT = pushpush_client
 LIBS = `pkg-config --libs --cflags gtk+-2.0`
 cJSON_path = ../cJSON.c
+cJSON_object = cJSON.o
 .PHONY : rcs rcc
 
 compile: server client
@@ -34,11 +35,11 @@ rc:
 test: mkobj run
 
 mkobj: $(SERVER).c $(MAIN_TARGET)
-	$(CC) -c -o $(SERVER).o $(SERVER).c -pthread -DTEST
-	$(CC) -c -o $(MAIN_TARGET).o $(MAIN_TARGET) -pthread -DTEST
+	$(CC) -c -o $(SERVER).o $(SERVER).c -I ../ -pthread -DTEST
+	$(CC) -o $(MAIN_TARGET).out $(SERVER).o $(cJSON_object) $(MAIN_TARGET) -pthread -DTEST
 
-run: $(SERVER).o $(MAIN_TARGET).o
-	$(CC) $(GCOV) -o $@.out $^
+run: $(MAIN_TARGET)
+	./$(MAIN_TARGET).out
 	
 
 #check coverage
