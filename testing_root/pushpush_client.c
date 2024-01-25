@@ -631,6 +631,7 @@ void * recv_msg(void * arg)   // read thread main
 int recv_bytes(int sock_fd, void * buf, size_t len){
     char * p = (char *)buf;
     size_t acc = 0;
+printf("$%s\n", p);
 
     while(acc < len)
     {
@@ -639,6 +640,7 @@ int recv_bytes(int sock_fd, void * buf, size_t len){
         if(recved  == -1 || recved == 0){
             return -1;
         }
+printf("#%s\n", p);
         p+= recved ;
         acc += recved ;
     }
