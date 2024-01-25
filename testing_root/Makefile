@@ -29,9 +29,10 @@ rs:
 rc:
 	./client.out $(IP) $(PORT)
 
-#TODO test
-mod: $(SERVER).c $(TARGET) $(cJSON_path)
+smod: $(SERVER).c $(TARGET) $(cJSON_path)
 	$(CC) $(GCOV) -o mod.out  $^  -pthread -DTEST
+cmod: $(CLIENT).c $(TARGET) $(cJSON_path)
+	$(CC) $(GCOV) -o mod.out $^  $(LIBS) -DTEST
 
 run: $(TARGET)
 	./mod.out < $(TARGET)
@@ -45,7 +46,6 @@ ccov:
 clean:
 	find . -name "*.out" -exec rm -f {} \;
 	find . -name "*.gcno" -exec rm -f {} \;
-
 	find . -name "*.gcda" -exec rm -f {} \;
 	find . -name "*.gcov" -exec rm -f {} \;
 	find . -name "*.o" -exec rm -f {} \;
