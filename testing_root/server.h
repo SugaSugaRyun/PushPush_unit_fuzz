@@ -29,7 +29,11 @@ extern int clnt_cnt;
 extern int clnt_socks[MAX_USER];
 extern pthread_mutex_t mutx;
 
+#ifdef TEST
+int loadJson(char*);
+#else
 int loadJson();
+#endif
 void disconnected(int sock);
 int write_byte(int sock, void * buf, int size);
 int read_byte(int sock, void * buf, int size);
