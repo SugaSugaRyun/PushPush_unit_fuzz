@@ -16,6 +16,7 @@
 int main(){
 
 	printf("hehe\n");
+	clnt_cnt = 0;
 	write_byte(STDERR_FILENO, "HELLO", 6);
 
 }
