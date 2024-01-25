@@ -1,0 +1,35 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include "../cJSON.h"
+#include <signal.h>
+
+#define BUF_SIZE 256
+#define MAX_USER 4
+#define NAME_SIZE 16
+#define PATH_LENGTH 256
+
+int usr_cnt = 0; //num of connected user
+int game_start = 0;
+int max_user;
+char ** user_name;
+int json_size;
+char * json_serialize;
+
+int clnt_cnt = 0;
+int clnt_socks[MAX_USER];
+pthread_mutex_t mutx;
+
+int loadJson();
+void disconnected(int sock);
+int write_byte(int sock, void * buf, int size);
+int read_byte(int sock, void * buf, int size);
+void send_msg_all(void * event, int len);
+void *handle_clnt(void * arg);
+void error_handling(char * msg);

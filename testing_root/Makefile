@@ -30,7 +30,8 @@ rc:
 	./client.out $(IP) $(PORT)
 
 #TODO test
-
+t: $(SERVER).c $(TARGET) $(cJSON_path)
+	$(CC) $(GCOV) -o $@.out  $^  -pthread -DTEST
 
 test: mkobj run
 
