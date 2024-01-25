@@ -40,11 +40,19 @@ void quit(int sig){
 }
 
 //loadJson: read datas from json file
+#ifdef TEST
+int loadJson(char *filepath)
+#else
 int loadJson() 
+#endif
 {
+	#ifdef TEST
+
+	#else
 	char filepath[PATH_LENGTH];
 	fgets(filepath, PATH_LENGTH-1, stdin);
 	filepath[strlen(filepath)-1]=0;
+	#endif
 	FILE *file = fopen(filepath,"r");
 	if(file == NULL)
 	{
