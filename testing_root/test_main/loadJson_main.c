@@ -1,10 +1,9 @@
 #include <stdio.h>
-
-#include "../pushpush_server.c"
+#include "../server.h"
 
 int main(int argc, char *argv[])
 {
-    // loadJson(argv[1]);
+    loadJson(argv[1]);
     printf("%d",max_user);
     return 0;
 }

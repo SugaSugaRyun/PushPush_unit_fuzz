@@ -1,11 +1,9 @@
 #include <stdio.h>
-#ifdef TEST
-#else
-#include "../pushpush_server.c"
-#endif
+#include "../server.h"
 
 int main(){
 	printf("Happy happy happy\n");
-	write_byte(2, "HI\n", 3);
+	clnt_cnt++;
+	printf("client count:%d\n", clnt_cnt);
 	return 0;
 }
