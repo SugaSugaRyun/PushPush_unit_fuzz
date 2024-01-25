@@ -30,19 +30,11 @@ rc:
 	./client.out $(IP) $(PORT)
 
 #TODO test
-t: $(SERVER).c $(TARGET) $(cJSON_path)
-	$(CC) $(GCOV) -o $@.out  $^  -pthread -DTEST
+mod: $(SERVER).c $(TARGET) $(cJSON_path)
+	$(CC) $(GCOV) -o mod.out  $^  -pthread -DTEST
 
-test: mkobj run
-
-mkobj: $(SERVER).c $(MAIN_TARGET)
-	$(CC) -c -o $(cJSON_object) $(cJSON_path)
-	$(CC) -c -o $(SERVER).o $(SERVER).c -I ../ -pthread -DTEST
-	$(CC) -o $(MAIN_TARGET).out $(SERVER).o $(cJSON_object) $(MAIN_TARGET) -pthread -DTEST
-
-run: $(MAIN_TARGET)
-	./$(MAIN_TARGET).out
-	
+run: $(TARGET)
+	./mod.out < $(TARGET)
 
 #check coverage
 scov:
@@ -53,6 +45,7 @@ ccov:
 clean:
 	find . -name "*.out" -exec rm -f {} \;
 	find . -name "*.gcno" -exec rm -f {} \;
+
 	find . -name "*.gcda" -exec rm -f {} \;
 	find . -name "*.gcov" -exec rm -f {} \;
 	find . -name "*.o" -exec rm -f {} \;
