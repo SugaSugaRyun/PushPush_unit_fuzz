@@ -142,7 +142,10 @@ int write_byte(int sock, void * buf, int size)
 		}
 		if( str_len == -1)
 		{
+			#ifdef TEST
+			#else
 			disconnected(sock);
+			#endif
 		}
 		write_size += str_len;
 	}
@@ -159,7 +162,11 @@ int read_byte(int sock, void * buf, int size)
 		str_len = read(sock, buf + read_size, size - read_size);
 		if( str_len == 0)
 		{
+			#ifdef TEST
+			#else
 			disconnected(sock);
+			#endif
+
 			return 0;
 		}
 		if( str_len == -1)
