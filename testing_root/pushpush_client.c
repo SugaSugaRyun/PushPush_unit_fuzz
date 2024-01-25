@@ -655,7 +655,11 @@ int send_bytes(int sock_fd, void * buf, size_t len){
 
     while(acc < len){
         size_t sent;
+		#ifdef TEST
+		sent = write(sock_fd, p, len - acc);
+		#else
         sent = send(sock_fd, p, len - acc, 0);
+		#endif
         if(sent == -1 || sent == 0){
             return -1;
         }
