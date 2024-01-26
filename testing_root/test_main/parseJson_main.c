@@ -4,7 +4,6 @@ int main(int argc, char **argv){
     int read_len = 0;
     int rd = 0;
     char buf;
-
     char* json = NULL;
     while((rd = read(STDIN_FILENO, &buf, 1)) > 0){
         read_len += rd;
