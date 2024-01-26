@@ -24,10 +24,10 @@ int main(int argc, char *argv[]){
     update_cell();
     int movement;
     char buf;
-    int fd = open("testcases/check_validation_testcase", O_RDONLY);
-    while(read(fd, &buf, 1) == 1){
+    // int fd = open("test_main/testcases/check_validation_testcase", O_RDONLY);
+    while(read(STDIN_FILENO, &buf, 1) == 1){
         int event = buf;
-        if(event <= 0 && event >= 16){
+        if(event < 0 || event > 15){
             continue;
         }
         if((movement = check_validation(event)) == 0) fprintf(stderr,"invalid movement!\n");
