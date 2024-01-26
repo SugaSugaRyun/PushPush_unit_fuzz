@@ -1,4 +1,5 @@
 #include "../client.h"
+#include <fcntl.h>
 
 int main(int argc, char *argv[]){
     struct stat st;
@@ -14,6 +15,25 @@ int main(int argc, char *argv[]){
         perror("fread");
     }
     parseJson(json);
+    
+    map = (int **) malloc (sizeof(int *) * Model.map_width);
+	for(int i=0;i<Model.map_width;i++){
+		map[i] =(int *) malloc(sizeof(int) * Model.map_height);
+	} 
+
     update_cell();
-    check_validation(15);
+    int movement;
+    char buf;
+    int fd = open("testcases/check_validation_testcase", O_RDONLY);
+    while(read(fd, &buf, 1) == 1){
+        int event = buf;
+        if(event <= 0 && event >= 16){
+            continue;
+        }
+        if((movement = check_validation(event)) == 0) fprintf(stderr,"invalid movement!\n");
+	    else{	
+		    move(event, movement);
+	    } 
+    }
+
 }
