@@ -435,7 +435,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 	    return TRUE;
     }
 	fprintf(stderr,"keyboard :%d player id : %d, cmd : %d\n", event->keyval, my_id ,cmd);
-	write(fd[1], event, sizeof(int));
+	//write(fd[1], event, sizeof(int));
 	send_bytes(sock, (void*)&cmd, sizeof(int));
 
 	return TRUE;

@@ -28,13 +28,14 @@ int main(){
 	user id: (0~Model.max_user)+1
 	*/
 	fscanf(stdin, "%d", &id);
-	if(!((id > 0 && id <= Model.max_user) || (id > item_idxToId(0) && id <  //TODO 검증하고 넣어서 돌려보고..
+	if(!((id > 0 && id <= Model.max_user) || (id >= item_idxToId(0) && id <= item_idxToId(num_item)))) id = 1;
 	printf("x y: ");
 	fscanf(stdin, "%d %d", &x, &y);
+	if(x < 0 || x > Model.map_width) x = 0;
+	if(y < 0 || y > Model.map_height) y = 0;
 	update_model(id, x, y);
 
 }
-
 
 
 

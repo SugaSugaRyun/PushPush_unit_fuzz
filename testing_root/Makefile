@@ -37,6 +37,7 @@ cmod: $(CLIENT).c $(TARGET) $(cJSON_path)
 run: $(TARGET)
 	./mod.out < $(TARGET)
 
+
 #check coverage
 scov:
 	gcov -b -c -f $(SERVER).gcno
