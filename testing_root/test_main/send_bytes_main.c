@@ -7,9 +7,9 @@ int main(void){
 
 	pipe(fd);
 	fgets(buf, BUF_SIZE, stdin);
+    send_bytes(fd[1], buf, strlen(buf));
 
-	write(fd[1], buf, strlen(buf));
-    recv_bytes(fd[0], buf2, strlen(buf));
+	read(fd[0], buf2, strlen(buf));
 	printf("%s", buf2);
 
     return 0;
