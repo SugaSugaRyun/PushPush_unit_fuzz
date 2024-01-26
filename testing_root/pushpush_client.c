@@ -400,7 +400,9 @@ int move(int cmd, int movement){
 	}else if(movement > (0-ITEM)){ //valid and item-scoreup
 		fprintf(stderr,"move for success %d!!!\n", movement);	
 		update_model((0-movement), -1, -1);	
+		#ifndef TEST
 		score_up(user_idx);
+		#endif
 		current_num_item--;
 	}
 	update_model(user_idx+1, target_x,target_y);	
