@@ -4,7 +4,9 @@ else
 	GCOV =
 endif
 
-CC = clang
+CC = gcc
+AFL = ../AFLplusplus/afl-$(CC)
+FUZZ = ../../AFLplusplus/afl-fuzz 
 JSON = "../game_data/map2.json"
 IP = "127.0.0.1"
 PORT = "9999"
@@ -43,6 +45,16 @@ scov:
 	gcov -b -c -f $(SERVER).gcno
 ccov:
 	gcov -b -c -f $(CLIENT).gcno
+
+sfuzz: $(SERVER).c $(TARGET) $(cJSON_path)
+	$(AFL) -o target.out $^ -pthread -DTEST
+cfuzz: $(CLIENT).c $(TARGET) $(cJSON_path)
+	$(AFL) -o target.out $^  $(LIBS) -DTEST
+
+rfuzzarg:
+	$(FUZZ) -i $(INPUT) -o outputs ./target.out @@ 
+rfuzzstd:
+	$(FUZZ) -i $(INPUT) -o outputs ./target.out 
 
 clean:
 	find . -name "*.out" -exec rm -f {} \;

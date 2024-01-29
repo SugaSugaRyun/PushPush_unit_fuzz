@@ -1,0 +1,6 @@
+# environment variables:
+AFL_CUSTOM_INFO_PROGRAM=./target.out
+AFL_CUSTOM_INFO_PROGRAM_ARGV=
+AFL_CUSTOM_INFO_OUT=outputs/default
+# command line:
+'../../AFLplusplus/afl-fuzz' '-i' 'test_main/testcases/check_validation' '-o' 'outputs' './target.out'
